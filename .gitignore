@@ -1,0 +1,9 @@
+# Paramètres VSCode
+.vscode
+
+# Fichiers objets et règles Makefile pour prendre
+# en compte les changements dans les headers
+build
+
+# Exécutable
+auction
