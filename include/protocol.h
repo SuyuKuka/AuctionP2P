@@ -21,8 +21,9 @@ enum Flags {
 };
 
 enum Codes {
-    CONS_VAL = 1,  /* Consensus : message de validation. */
-    CONS_CONF = 2, /* Consensus : confirmation de la réception de tous les msg de validation. */
+    CONS_VAL = 1,             /* Consensus : message de validation. */
+    CONS_CONF = 2,            /* Consensus : confirmation de la réception de tous les msg de
+                                 validation. */
     CONS_CONF_FOLLOW = 20,    /* Consensus: suite du message de confirmation. */
     JOIN_REQ = 3,             /* Join system : demande pour rejoindre le système.  */
     JOIN_REQ_RES = 4,         /* Join system : réponse à la demande initiale. */
@@ -49,8 +50,8 @@ typedef struct message {
     uint16_t id;        /* Identifiant. */
     uint8_t lmess;      /* Longueur du message. */
     uint8_t lsig;       /* Longueur de la signature. */
-    char* mess;         /* Message. */
-    char* sig;          /* Signature. */
+    char *mess;         /* Message. */
+    char *sig;          /* Signature. */
     struct in6_addr ip; /* Adresse IP. */
     uint16_t port;      /* Port. */
     char cle[113];      /* Clé. */
@@ -61,7 +62,7 @@ typedef struct message {
 
 /* Structure pour un buffer de taille variable. */
 typedef struct msg_buffer {
-    char* buf;   /* Buffer. */
+    char *buf;   /* Buffer. */
     size_t size; /* Taille totale du buffer. */
     size_t len;  /* Taille actuelle du buffer. */
 } msg_buffer;
@@ -76,7 +77,7 @@ typedef struct msg_buffer {
  *
  * @return `-1` en cas d'erreur, `0` sinon.
  */
-int init_msg_buffer(msg_buffer* msg_buf, size_t size);
+int init_msg_buffer(msg_buffer *msg_buf, size_t size);
 /**
  * @brief Réalloue `msg_buf->buf` en doublant sa taille.
  *
@@ -86,12 +87,12 @@ int init_msg_buffer(msg_buffer* msg_buf, size_t size);
  *
  * @return `-1` en cas d'erreur, `0` sinon.
  */
-int realloc_msg_buffer(msg_buffer* msg_buf);
+int realloc_msg_buffer(msg_buffer *msg_buf);
 /**
  * @brief Ajoute `data` à la suite dans le buffer.
  *
- * La méthode réalloue le buffer si la taille des données est plus grande que la taille restante
- * dans le buffer (`realloc_msg_buffer`).
+ * La méthode réalloue le buffer si la taille des données est plus grande que la
+ * taille restante dans le buffer (`realloc_msg_buffer`).
  *
  * @param[in,out]   msg_buf Buffer.
  * @param[in]       data Données.
@@ -99,15 +100,17 @@ int realloc_msg_buffer(msg_buffer* msg_buf);
  *
  * @return `-1` en cas d'erreur, `0` sinon.
  */
-int concat_to_buf(msg_buffer* msg_buf, void* data, size_t data_size);
+int concat_to_buf(msg_buffer *msg_buf, void *data, size_t data_size);
 /**
- * @brief Ajoute les données contenues dans `msg` spécifiées par les `flags` à la suite du buffer.
+ * @brief Ajoute les données contenues dans `msg` spécifiées par les `flags` à
+ * la suite du buffer.
  *
  * Exemple :
- * Si `flags = CODE | ID`, alors les champs `msg->code` et `msg->id` seront concaténé à `msg_buf`.
+ * Si `flags = CODE | ID`, alors les champs `msg->code` et `msg->id` seront
+ * concaténé à `msg_buf`.
  *
- * La méthode réalloue le buffer si la taille des données est plus grande que la taille restante
- * dans le buffer (`concat_to_buf`).
+ * La méthode réalloue le buffer si la taille des données est plus grande que la
+ * taille restante dans le buffer (`concat_to_buf`).
  *
  * @param[in,out]   msg_buf Buffer.
  * @param[in]       data Données.
@@ -115,6 +118,24 @@ int concat_to_buf(msg_buffer* msg_buf, void* data, size_t data_size);
  *
  * @return `-1` en cas d'erreur, `0` sinon.
  */
-int concat_msg_to_buf(msg_buffer* msg_buf, message* msg, unsigned int flags);
+int concat_msg_to_buf(msg_buffer *msg_buf, message *msg, unsigned int flags);
+/**
+ * @brief Initialise l'adresse `addr` de type multicast.
+ *
+ * @param[in,out]   addr Pointeur sur la structure à initialiser.
+ * @param[in]       ip Adresse IP.
+ * @param[in]       port Port.
+ *
+ * @return `-1` en cas d'erreur, `0` sinon.
+ */
+int init_multicast_addr(struct sockaddr_in6 *addr, const char *ip, int port);
+/**
+ * @brief Renvoie une socket abonnée à l'adresse `multicast_addr`.
+ *
+ * @param[in]   multicast_addr Adresse multicast.
+ *
+ * @return `-1` en cas d'erreur, `0` sinon.
+ */
+int init_multicast_socket(struct sockaddr_in6 multicast_addr);
 
 #endif
