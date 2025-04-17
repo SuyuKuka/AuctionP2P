@@ -1,4 +1,4 @@
-#include "netio.h"
+#include "protocol.h"
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,5 +1,5 @@
-#ifndef NETIO_H
-#define NETIO_H
+#ifndef PROTOCOL_H
+#define PROTOCOL_H
 
 #include <netinet/in.h>
 #include <stdint.h>
