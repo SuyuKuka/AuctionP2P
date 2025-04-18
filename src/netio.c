@@ -1,1 +1,0 @@
-// TODO: Méthodes pour les messages
