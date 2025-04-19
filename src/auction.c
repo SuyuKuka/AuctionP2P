@@ -9,6 +9,7 @@
 
 #include "linking.h"
 #include "protocol.h"
+#include "utils.h"
 
 #define LINKING_IP "ff12::feed:bee"
 #define AUCTIONS_IP "ff12::add:beef"
@@ -21,27 +22,57 @@ int main(int argc, char const *argv[]) {
     (void)argv;
 
     int res;
-    int linking_subs_sock = -1;
-    struct sockaddr_in6 linking_addr;
-    struct sockaddr_in6 auction_addr;
+    int udp_sock = -1;                  // Socket UDP pour l'envoi de messages.
+    int tcp_serv_sock = -1;             // Socket TCP pour la réception de messages.
+    int linking_subs_sock = -1;         // Socket UDP abonnée à l'adresse de liaison.
+    struct sockaddr_in6 linking_addr;   // Adresse de liaison.
+    struct sockaddr_in6 auction_addr;   // Adresse d'enchères.
+    struct sockaddr_in6 personal_addr;  // Adresse personnelle.
 
-    // Initialisation de l'adresse de liaison
-    if (init_multicast_addr(&linking_addr, LINKING_IP, LINKING_PORT) < 0) goto error;
+    // Initialisation udp_sock.
+    udp_sock = make_udp_socket();
+    if (udp_sock < 0) goto error;
+    int udp_sock_port = get_socket_port(udp_sock);
+    if (udp_sock_port < 0) goto error;
 
-    res = process_linking(linking_addr);
-    if (res == 1) {
-        printf("Nobody connected...\n");
+    // Initialisation de l'adresse de liaison et l'adresse personnelle.
+    if (init_multicast_addr(&linking_addr, LINKING_IP, LINKING_PORT) < 0 ||
+        init_personal_addr(&personal_addr, udp_sock_port) < 0)
+        goto error;
+
+    // ===== DEBUG =====
+    char ip_str[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET6, &personal_addr.sin6_addr, ip_str, sizeof(ip_str));
+    printf("[DEBUG] Personal addr: %s:%d\n", ip_str, ntohs(personal_addr.sin6_port));
+    // ===== DEBUG =====
+
+    // Initialisation tcp_serv_sock.
+    tcp_serv_sock = make_tcp_server_socket(udp_sock_port);
+    if (tcp_serv_sock < 0) goto error;
+
+    // Structure pour stocker les sockets et l'adresse personnelle.
+    pers_sockets personal_sockets = {
+        .addr = personal_addr, .udp_sock = udp_sock, .tcp_serv_sock = tcp_serv_sock};
+
+    // Demande d'adhésion au système d'enchères
+    res = process_linking(personal_sockets, linking_addr);
+    if (res == 0) {
+        printf("Nobody connected, awaiting new peers...\n");
     } else if (res < 0) {
         goto error;
     }
 
     // TODO: A appeler dans un autre thread ?
-    handle_join_requests(linking_addr);
+    handle_join_requests(personal_sockets, linking_addr);
 
+    close(udp_sock);
+    close(tcp_serv_sock);
+    close(linking_subs_sock);
     return EXIT_SUCCESS;
 
 error:
+    if (udp_sock) close(udp_sock);
+    if (tcp_serv_sock) close(tcp_serv_sock);
     if (linking_subs_sock) close(linking_subs_sock);
-
     return EXIT_FAILURE;
 }
