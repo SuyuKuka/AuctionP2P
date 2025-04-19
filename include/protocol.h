@@ -44,20 +44,21 @@ enum Codes {
     MISSING_PEER = 18,        /* Pair absent. */
 };
 
-/* Structure pour un message quelconque. */
+/* Structure pour un message quelconque.
+   /!\ Ne pas oublier de convertir les nombres en big-endian. /!\ */
 typedef struct message {
-    uint8_t code;       /* Type. */
-    uint16_t id;        /* Identifiant. */
-    uint8_t lmess;      /* Longueur du message. */
-    uint8_t lsig;       /* Longueur de la signature. */
-    char *mess;         /* Message. */
-    char *sig;          /* Signature. */
-    struct in6_addr ip; /* Adresse IP. */
-    uint16_t port;      /* Port. */
-    char cle[113];      /* Clé. */
-    uint32_t numv;      /* Num vente. */
-    uint32_t prix;      /* Prix vente. */
-    uint16_t nb;        /* Nombre d'un type de message concaténé à la suite. */
+    uint8_t code;   /* Type. */
+    uint16_t id;    /* Identifiant. */
+    uint8_t lmess;  /* Longueur du message. */
+    uint8_t lsig;   /* Longueur de la signature. */
+    char *mess;     /* Message. */
+    char *sig;      /* Signature. */
+    uint8_t ip[16]; /* Adresse IP. */
+    uint16_t port;  /* Port. */
+    char cle[113];  /* Clé. */
+    uint32_t numv;  /* Num vente. */
+    uint32_t prix;  /* Prix vente. */
+    uint16_t nb;    /* Nombre d'un type de message concaténé à la suite. */
 } message;
 
 /* Structure pour un buffer de taille variable. */
@@ -89,6 +90,12 @@ int init_msg_buffer(msg_buffer *msg_buf, size_t size);
  */
 int realloc_msg_buffer(msg_buffer *msg_buf);
 /**
+ * @brief Libère la mémoire utilisée par le buffer.
+ *
+ * @param[in]   msg_buf Buffer.
+ */
+void free_msg_buffer(msg_buffer msg_buffer);
+/**
  * @brief Ajoute `data` à la suite dans le buffer.
  *
  * La méthode réalloue le buffer si la taille des données est plus grande que la
@@ -100,7 +107,7 @@ int realloc_msg_buffer(msg_buffer *msg_buf);
  *
  * @return `-1` en cas d'erreur, `0` sinon.
  */
-int concat_to_buf(msg_buffer *msg_buf, void *data, size_t data_size);
+int concat_to_buf(msg_buffer *msg_buf, const void *data, size_t data_size);
 /**
  * @brief Ajoute les données contenues dans `msg` spécifiées par les `flags` à
  * la suite du buffer.
@@ -113,29 +120,21 @@ int concat_to_buf(msg_buffer *msg_buf, void *data, size_t data_size);
  * taille restante dans le buffer (`concat_to_buf`).
  *
  * @param[in,out]   msg_buf Buffer.
- * @param[in]       data Données.
- * @param[in]       data_size Taille des données.
+ * @param[in]       msg Message.
+ * @param[in]       flags Champs à mettre dans le buffer.
  *
  * @return `-1` en cas d'erreur, `0` sinon.
  */
 int concat_msg_to_buf(msg_buffer *msg_buf, message *msg, unsigned int flags);
 /**
- * @brief Initialise l'adresse `addr` de type multicast.
+ * @brief Ajoute les données contenues dans `buf` spécifiées par les `flags` dans `msg`.
  *
- * @param[in,out]   addr Pointeur sur la structure à initialiser.
- * @param[in]       ip Adresse IP.
- * @param[in]       port Port.
- *
- * @return `-1` en cas d'erreur, `0` sinon.
- */
-int init_multicast_addr(struct sockaddr_in6 *addr, const char *ip, int port);
-/**
- * @brief Renvoie une socket abonnée à l'adresse `multicast_addr`.
- *
- * @param[in]   multicast_addr Adresse multicast.
+ * @param[in]       buf Buffer.
+ * @param[in,out]   msg Message.
+ * @param[in]       flags Champs à mettre dans le message.
  *
  * @return `-1` en cas d'erreur, `0` sinon.
  */
-int init_multicast_socket(struct sockaddr_in6 multicast_addr);
+void buf_to_msg(const char *buf, message *msg, unsigned int flags);
 
 #endif
