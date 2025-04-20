@@ -1,10 +1,12 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "linking.h"
@@ -28,6 +30,10 @@ int main(int argc, char const *argv[]) {
     struct sockaddr_in6 linking_addr;   // Adresse de liaison.
     struct sockaddr_in6 auction_addr;   // Adresse d'enchères.
     struct sockaddr_in6 personal_addr;  // Adresse personnelle.
+    dyn_array peers_data;               // Adresses et clés des pairs.
+    pers_data p_data;
+
+    if (init_dyn_array(&peers_data, sizeof(peer_data) * 5) < 0) goto error;
 
     // Initialisation udp_sock.
     udp_sock = make_udp_socket();
@@ -50,12 +56,16 @@ int main(int argc, char const *argv[]) {
     tcp_serv_sock = make_tcp_server_socket(udp_sock_port);
     if (tcp_serv_sock < 0) goto error;
 
-    // Structure pour stocker les sockets et l'adresse personnelle.
-    pers_sockets personal_sockets = {
-        .addr = personal_addr, .udp_sock = udp_sock, .tcp_serv_sock = tcp_serv_sock};
+    // Initialisation p_data.
+    srand(time(NULL));
+    p_data.addr = personal_addr;
+    p_data.udp_sock = udp_sock;
+    p_data.tcp_serv_sock = tcp_serv_sock;
+    p_data.id = rand() % UINT16_MAX;
+    memset(&p_data.cle, 0, sizeof(p_data.cle));
 
     // Demande d'adhésion au système d'enchères
-    res = process_linking(personal_sockets, linking_addr);
+    res = handle_linking(p_data, peers_data, linking_addr);
     if (res == 0) {
         printf("Nobody connected, awaiting new peers...\n");
     } else if (res < 0) {
@@ -63,7 +73,15 @@ int main(int argc, char const *argv[]) {
     }
 
     // TODO: A appeler dans un autre thread ?
-    handle_join_requests(personal_sockets, linking_addr);
+    join_req_params join_req_p = {.p_data = p_data, .linking_addr = linking_addr};
+    pthread_t join_req_thread;
+    pthread_create(&join_req_thread, NULL, handle_join_requests, &join_req_p);
+    data_sharing_params sharing_p = {.p_data = p_data, .peers_data = peers_data};
+    pthread_t d_sharing_thread;
+    pthread_create(&d_sharing_thread, NULL, handle_data_sharing, &sharing_p);
+
+    while (1);
+    // TODO: Etape 3
 
     close(udp_sock);
     close(tcp_serv_sock);
@@ -74,5 +92,6 @@ error:
     if (udp_sock) close(udp_sock);
     if (tcp_serv_sock) close(tcp_serv_sock);
     if (linking_subs_sock) close(linking_subs_sock);
+    free_dyn_array(peers_data);
     return EXIT_FAILURE;
 }

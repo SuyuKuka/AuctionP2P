@@ -5,13 +5,6 @@
 
 #define MILLI(seconds) seconds * 1000
 
-/* Structure pour stocker les sockets de l'adresse personnelle. */
-typedef struct pers_sockets {
-    struct sockaddr_in6 addr;
-    int udp_sock;
-    int tcp_serv_sock;
-} pers_sockets;
-
 /**
  * @brief Envoie `n` octets de `buf` vers `sock` avec une attente maximale `timeout`.
  *

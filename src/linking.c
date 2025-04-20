@@ -7,9 +7,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "protocol.h"
-#include "utils.h"
-
 /**
  * @brief Envoi le message pour rejoindre le système d'enchères (`code = 3`).
  *
@@ -20,23 +17,27 @@
  */
 int send_join_request(int sock, struct sockaddr_in6 linking_addr);
 /**
- * @brief Gère les réponses de la part des autres pairs suite à la demande initiale.
+ * @brief Gère les réponses de la part des autres pairs suite à la demande initiale (`code = 4`).
  *
- * @param[in]   sock Socket serveur TCP.
+ * @param[in]       sock Socket serveur TCP.
+ * @param[in,out]   peers_data Adresses et clés des pairs.
  *
  * @return `-1` en cas d'erreur, `0` s'il n'y a pas eu de réponse, `1` sinon.
  */
-int await_join_req_response(int sock);
+int await_join_req_response(int sock, dyn_array peers_data);
+int handle_pers_data_sharing(pers_data p_data, dyn_array peers_data);
+int send_pers_data_to_peer(pers_data p_data, peer_data peer);
 
-int process_linking(pers_sockets socks, struct sockaddr_in6 linking_addr) {
+int handle_linking(pers_data p_data, dyn_array peers_data, struct sockaddr_in6 linking_addr) {
     // b) 1. Envoi de la demande + attente de réponse
     int attempts = 0;
     int res = 0;
     do {
-        send_join_request(socks.udp_sock, linking_addr);
+        send_join_request(p_data.udp_sock, linking_addr);
         attempts++;
         printf("Trying to join the auction system... Attempt %d.\n", attempts);
-    } while (attempts < 3 && (res = await_join_req_response(socks.tcp_serv_sock)) == 0);
+    } while (attempts < 3 &&
+             (res = await_join_req_response(p_data.tcp_serv_sock, peers_data)) == 0);
 
     // Erreur
     if (res < 0) return -1;
@@ -44,8 +45,14 @@ int process_linking(pers_sockets socks, struct sockaddr_in6 linking_addr) {
     // b) 2. Pas de réponse reçue
     if (attempts == 3 && !res) return 0;
 
+    handle_pers_data_sharing(p_data, peers_data);
+
     return 1;
 }
+
+/**************************************************************************************************
+ *                     Demande d'adhésion au système + attente d'une réponse.                     *
+ **************************************************************************************************/
 
 int send_join_request(int sock, struct sockaddr_in6 linking_addr) {
     message msg;
@@ -62,6 +69,7 @@ int send_join_request(int sock, struct sockaddr_in6 linking_addr) {
         goto error;
     }
 
+    free_dyn_array(msg_buf);
     return 0;
 
 error:
@@ -69,7 +77,7 @@ error:
     return -1;
 }
 
-int await_join_req_response(int sock) {
+int await_join_req_response(int sock, dyn_array peers_data) {
     struct pollfd fds = {.fd = sock, .events = POLLIN};
     int poll_ret;
     int got_res = 0;
@@ -86,16 +94,10 @@ int await_join_req_response(int sock) {
             int peer = accept(sock, NULL, NULL);
             if (peer < 0) continue;
 
-            if (set_nonblock(peer) < 0) {
-                close(peer);
-                continue;
-            }
+            if (set_nonblock(peer) < 0) goto error;
 
             // Lecture du message.
-            if (read_nb(peer, buf, msg_size, MILLI(5)) < 0) {
-                close(peer);
-                continue;
-            }
+            if (read_nb(peer, buf, msg_size, MILLI(5)) < 0) goto error;
 
             // Code correct.
             if (buf[0] == JOIN_REQ_RES) {
@@ -104,14 +106,24 @@ int await_join_req_response(int sock) {
                 // Traduction buffer -> message.
                 buf_to_msg(buf, &msg, CODE | ID | IP | PORT);
 
+                // Ajout des données du pair dans `peers_data`.
+
+                peer_data data = {.id = msg.id, .port = msg.port};
+                memcpy(&data.ip, &msg.ip, sizeof(msg.ip));
+                memset(data.cle, 0, KEY_SIZE);
+
+                if (concat_to_array(&peers_data, &data, sizeof(data)) < 0) goto error;
+
                 // ===== DEBUG =====
+                peer_data p = ((peer_data *)(peers_data.array))[0];
                 char ip_str[INET6_ADDRSTRLEN];
-                inet_ntop(AF_INET6, &msg.ip, ip_str, sizeof(ip_str));
-                printf("[DEBUG] Response received!\n[DEBUG] From peer %d of ip %s:%d.\n", msg.id,
-                       ip_str, ntohs(msg.port));
+                inet_ntop(AF_INET6, p.ip, ip_str, sizeof(ip_str));
+                printf("[DEBUG] Response received!\n[DEBUG] From peer %d of ip %s:%d.\n", p.id,
+                       ip_str, ntohs(p.port));
                 // ===== DEBUG =====
             }
 
+        error:
             close(peer);
         }
     }
@@ -124,89 +136,208 @@ int await_join_req_response(int sock) {
     return got_res;
 }
 
-int handle_join_requests(pers_sockets socks, struct sockaddr_in6 linking_addr) {
-    // Socket abonnée à l'adresse de liaison.
-    int linking_subs_sock = make_multicast_socket(linking_addr);
-    if (linking_subs_sock < 0) return -1;
+/**************************************************************************************************
+ *                                Partage des infos personnelles.                                 *
+ **************************************************************************************************/
 
-    struct pollfd fds = {.fd = linking_subs_sock, .events = POLLIN};
+int handle_pers_data_sharing(pers_data p_data, dyn_array peers_data) {
     int ret;
-    while ((ret = poll(&fds, 1, -1))) {
-        // Message multicast reçue.
-        if (fds.revents & POLLIN) {
-            char buf[1024];
-            memset(buf, 0, sizeof(buf));
+    peer_data peer;
+    size_t n_peer = 0;
+    do {
+        peer = ((peer_data *)peers_data.array)[n_peer];
 
-            // Adresse de l'expéditeur.
-            struct sockaddr_in6 addr;
-            socklen_t addr_len = sizeof(addr);
-            if (recvfrom(linking_subs_sock, buf, sizeof(buf), 0, (struct sockaddr *)&addr,
-                         &addr_len) < 0) {
-                perror("[ERROR] recvfrom");
-                continue;
-            }
+        printf("[DEBUG] Trying to share address and key to peer %zu.\n", n_peer);
+    } while ((ret = send_pers_data_to_peer(p_data, peer)) < 0 && n_peer < peers_data.len - 1);
 
-            // Mauvais code.
-            if (buf[0] != JOIN_REQ) continue;
+    return 0;
+}
 
-            // ===== DEBUG =====
-            char ip_str[INET6_ADDRSTRLEN];
-            inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str));
-            printf("[DEBUG] Join request received from: %s:%d\n", ip_str, ntohs(addr.sin6_port));
-            // ===== DEBUG =====
+int send_pers_data_to_peer(pers_data p_data, peer_data peer) {
+    message msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.code = JOIN_SHARE_INFO;
+    msg.id = p_data.id;
+    memcpy(&msg.ip, &p_data.addr.sin6_addr, sizeof(msg.ip));
+    msg.port = p_data.addr.sin6_port;
+    memcpy(&msg.cle, &p_data.cle, sizeof(msg.cle));
 
-            // Réponse à l'expéditeur.
-            message msg;
-            memset(&msg, 0, sizeof(msg));
-            msg.code = JOIN_REQ_RES;
-            msg.id = 0;  // TODO: Id
-            memcpy(msg.ip, socks.addr.sin6_addr.__in6_u.__u6_addr8, 16);
-            msg.port = socks.addr.sin6_port;
+    dyn_array msg_buf;
+    if (init_dyn_array(&msg_buf, sizeof(uint8_t)) < 0) return -1;
+    if (concat_msg_to_buf(&msg_buf, &msg, CODE) < 0) goto error;
 
-            dyn_array msg_buf;
-            if (init_dyn_array(&msg_buf, sizeof(uint8_t)) < 0) continue;
-            if (concat_msg_to_buf(&msg_buf, &msg, CODE | ID | IP | PORT) < 0) {
-                free_dyn_array(msg_buf);
-                continue;
-            }
+    struct sockaddr_in6 addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin6_family = AF_INET6;
+    addr.sin6_port = peer.port;
+    memcpy(&addr.sin6_addr.s6_addr, &peer.ip, sizeof(peer.ip));
 
-            // Socket TCP.
-            int sock = socket(AF_INET6, SOCK_STREAM, 0);
-            if (sock < 0) {
-                perror("[ERROR] socket");
-                goto error;
-            }
+    // ===== DEBUG =====
+    char ip_str[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str));
+    printf("[DEBUG] Sharing info to peer %d of ip %s:%d.\n", peer.id, ip_str, ntohs(peer.port));
+    // ===== DEBUG =====
 
-            // Connexion via TCP sur l'adresse de l'expéditeur.
-            if (connect(sock, (struct sockaddr *)&addr, addr_len) < 0) {
-                perror("[ERROR] connect");
-                goto error;
-            }
+    // Socket TCP.
+    int sock = socket(PF_INET6, SOCK_STREAM, 0);
+    if (sock < 0) {
+        perror("[ERROR] socket");
+        goto error;
+    }
 
-            if (set_nonblock(sock) < 0) {
-                goto error;
-            }
+    // Connexion via TCP sur l'adresse du pair.
+    if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        perror("[ERROR] connect");
+        goto error;
+    }
 
-            // Envoi de la réponse.
-            if (write_nb(sock, msg_buf.array, msg_buf.len, MILLI(5)) < 0) {
-                perror("[ERROR] send");
-                goto error;
-            }
+    if (set_nonblock(sock) < 0) {
+        goto error;
+    }
 
-            printf("[DEBUG] Response sent.\n");
+    printf("[DEBUG] Sharing address and key...\n");
 
-        error:
-            if (sock) close(sock);
-            free_dyn_array(msg_buf);
+    // Envoi de la réponse.
+    if (write_nb(sock, msg_buf.array, msg_buf.len, MILLI(5)) < 0) {
+        perror("[ERROR] send");
+        goto error;
+    }
+
+    free_dyn_array(msg_buf);
+    return 0;
+
+error:
+    free_dyn_array(msg_buf);
+    return -1;
+}
+
+/**************************************************************************************************
+ *                               Réception de messages côté pair Q.                               *
+ **************************************************************************************************/
+
+void *handle_join_requests(void *params) {
+    join_req_params p = *(join_req_params *)params;
+    // Socket abonnée à l'adresse de liaison.
+    int linking_subs_sock = make_multicast_socket(p.linking_addr);
+    if (linking_subs_sock < 0) return NULL;
+
+    char buf[1024];
+    while (1) {
+        memset(buf, 0, sizeof(buf));
+
+        // Adresse de l'expéditeur.
+        struct sockaddr_in6 addr;
+        socklen_t addr_len = sizeof(addr);
+        if (recvfrom(linking_subs_sock, buf, sizeof(buf), 0, (struct sockaddr *)&addr, &addr_len) <
+            0) {
+            perror("[ERROR] recvfrom");
+            continue;
         }
+
+        // Mauvais code.
+        if (buf[0] != JOIN_REQ) continue;
+
+        // ===== DEBUG =====
+        char ip_str[INET6_ADDRSTRLEN];
+        inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str));
+        printf("[DEBUG] Join request received from: %s:%d\n", ip_str, ntohs(addr.sin6_port));
+        // ===== DEBUG =====
+
+        // Réponse à l'expéditeur.
+        message msg;
+        memset(&msg, 0, sizeof(msg));
+        msg.code = JOIN_REQ_RES;
+        msg.id = 0;  // TODO: Id
+        memcpy(msg.ip, p.p_data.addr.sin6_addr.s6_addr, 16);
+        msg.port = p.p_data.addr.sin6_port;
+
+        dyn_array msg_buf;
+        if (init_dyn_array(&msg_buf, sizeof(uint8_t)) < 0) continue;
+        if (concat_msg_to_buf(&msg_buf, &msg, CODE | ID | IP | PORT) < 0) {
+            free_dyn_array(msg_buf);
+            continue;
+        }
+
+        // Socket TCP.
+        int sock = socket(PF_INET6, SOCK_STREAM, 0);
+        if (sock < 0) {
+            perror("[ERROR] socket");
+            goto error;
+        }
+
+        // Connexion via TCP sur l'adresse de l'expéditeur.
+        if (connect(sock, (struct sockaddr *)&addr, addr_len) < 0) {
+            perror("[ERROR] connect");
+            goto error;
+        }
+
+        if (set_nonblock(sock) < 0) {
+            goto error;
+        }
+
+        // Envoi de la réponse.
+        if (write_nb(sock, msg_buf.array, msg_buf.len, MILLI(5)) < 0) {
+            perror("[ERROR] send");
+            goto error;
+        }
+
+        printf("[DEBUG] Response sent.\n");
+
+    error:
+        if (sock) close(sock);
+        free_dyn_array(msg_buf);
     }
 
     close(linking_subs_sock);
 
-    if (ret < 0) {
-        perror("[ERROR] poll");
-        return -1;
-    }
-
     return 0;
+}
+
+void *handle_data_sharing(void *params) {
+    printf("[DEBUG] Handling data sharing...\n");
+
+    data_sharing_params p = *(data_sharing_params *)params;
+    while (1) {
+        message msg;
+        size_t msg_size =
+            sizeof(msg.code) + sizeof(msg.id) + sizeof(msg.ip) + sizeof(msg.port) + sizeof(msg.cle);
+        char buf[msg_size];
+        memset(buf, 0, msg_size);
+
+        // Accepte la connexion.
+        int peer = accept(p.p_data.tcp_serv_sock, NULL, NULL);
+        if (peer < 0) continue;
+
+        printf("[DEBUG] A peer shared their data.\n");
+
+        if (set_nonblock(peer) < 0) goto error;
+
+        // Lecture du message.
+        if (read_nb(peer, buf, msg_size, MILLI(5)) < 0) goto error;
+
+        // Code correct.
+        if (buf[0] == JOIN_SHARE_INFO) {
+            // Traduction buffer -> message.
+            buf_to_msg(buf, &msg, CODE | ID | IP | PORT | CLE);
+
+            // Ajout des données du pair dans `peers_data`.
+
+            peer_data data = {.id = msg.id, .port = msg.port};
+            memcpy(&data.ip, &msg.ip, sizeof(msg.ip));
+            memcpy(&data.cle, &msg.cle, KEY_SIZE);
+
+            if (concat_to_array(&p.peers_data, &data, sizeof(data)) < 0) goto error;
+
+            // ===== DEBUG =====
+            peer_data peer = ((peer_data *)(p.peers_data.array))[0];
+            char ip_str[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, peer.ip, ip_str, sizeof(ip_str));
+            printf("[DEBUG] Address shared!\n[DEBUG] From peer %d of ip %s:%d.\n", peer.id, ip_str,
+                   ntohs(peer.port));
+            // ===== DEBUG =====
+        }
+
+    error:
+        close(peer);
+    }
 }
