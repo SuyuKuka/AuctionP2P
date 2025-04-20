@@ -7,42 +7,42 @@
 #include <unistd.h>
 
 /**************************************************************************************************
- *                                       msg_buffer methods                                       *
+ *                                        dyn_array methods                                       *
  **************************************************************************************************/
 
-int init_msg_buffer(msg_buffer *msg_buf, size_t size) {
-    msg_buf->len = 0;
-    msg_buf->buf = malloc(size);
-    if (msg_buf->buf == NULL) {
-        msg_buf->size = 0;
+int init_dyn_array(dyn_array *arr, size_t size) {
+    arr->len = 0;
+    arr->array = malloc(size);
+    if (arr->array == NULL) {
+        arr->size = 0;
         perror("[ERROR] Failed to malloc");
         return -1;
     }
-    msg_buf->size = size;
+    arr->size = size;
     return 0;
 }
 
-int realloc_msg_buffer(msg_buffer *msg_buf) {
-    size_t new_size = msg_buf->size * 2;
-    char *tmp = realloc(msg_buf->buf, new_size);
+int realloc_dyn_array(dyn_array *arr) {
+    size_t new_size = arr->size * 2;
+    char *tmp = realloc(arr->array, new_size);
     if (tmp == NULL) {
         perror("[ERROR] Failed to realloc");
         return -1;
     }
-    msg_buf->buf = tmp;
-    msg_buf->size = new_size;
+    arr->array = tmp;
+    arr->size = new_size;
     return 0;
 }
 
-void free_msg_buffer(msg_buffer msg_buffer) { free(msg_buffer.buf); }
+void free_dyn_array(dyn_array arr) { free(arr.array); }
 
-int concat_to_buf(msg_buffer *msg_buf, const void *data, size_t data_size) {
-    while (msg_buf->len + data_size >= msg_buf->size) {
-        if (realloc_msg_buffer(msg_buf) < 0) return -1;
+int concat_to_array(dyn_array *arr, const void *data, size_t data_size) {
+    while (arr->len + data_size >= arr->size) {
+        if (realloc_dyn_array(arr) < 0) return -1;
     }
 
-    memcpy(msg_buf->buf + msg_buf->len, data, data_size);
-    msg_buf->len += data_size;
+    memcpy(arr->array + arr->len, data, data_size);
+    arr->len += data_size;
 
     return 0;
 }
@@ -51,36 +51,36 @@ int concat_to_buf(msg_buffer *msg_buf, const void *data, size_t data_size) {
  *                                         message methods                                        *
  **************************************************************************************************/
 
-int concat_msg_to_buf(msg_buffer *msg_buf, message *msg, unsigned int flags) {
+int concat_msg_to_buf(dyn_array *msg_buf, message *msg, unsigned int flags) {
     if (!msg_buf || !msg) return -1;
 
-    if (flags & CODE && concat_to_buf(msg_buf, &msg->code, sizeof(msg->code)) < 0) return -1;
+    if (flags & CODE && concat_to_array(msg_buf, &msg->code, sizeof(msg->code)) < 0) return -1;
 
-    if (flags & ID && concat_to_buf(msg_buf, &msg->id, sizeof(msg->id)) < 0) return -1;
+    if (flags & ID && concat_to_array(msg_buf, &msg->id, sizeof(msg->id)) < 0) return -1;
 
-    if (flags & LMESS && concat_to_buf(msg_buf, &msg->lmess, sizeof(msg->lmess)) < 0) return -1;
+    if (flags & LMESS && concat_to_array(msg_buf, &msg->lmess, sizeof(msg->lmess)) < 0) return -1;
 
-    if (flags & LSIG && concat_to_buf(msg_buf, &msg->lsig, sizeof(msg->lsig)) < 0) return -1;
+    if (flags & LSIG && concat_to_array(msg_buf, &msg->lsig, sizeof(msg->lsig)) < 0) return -1;
 
     if (flags & MESS && msg->lmess > 0 && msg->mess != NULL &&
-        concat_to_buf(msg_buf, msg->mess, msg->lmess) < 0)
+        concat_to_array(msg_buf, msg->mess, msg->lmess) < 0)
         return -1;
 
     if (flags & SIG && msg->lsig > 0 && msg->sig != NULL &&
-        concat_to_buf(msg_buf, msg->sig, msg->lsig) < 0)
+        concat_to_array(msg_buf, msg->sig, msg->lsig) < 0)
         return -1;
 
-    if (flags & IP && concat_to_buf(msg_buf, &msg->ip, sizeof(msg->ip)) < 0) return -1;
+    if (flags & IP && concat_to_array(msg_buf, &msg->ip, sizeof(msg->ip)) < 0) return -1;
 
-    if (flags & PORT && concat_to_buf(msg_buf, &msg->port, sizeof(msg->port)) < 0) return -1;
+    if (flags & PORT && concat_to_array(msg_buf, &msg->port, sizeof(msg->port)) < 0) return -1;
 
-    if (flags & CLE && concat_to_buf(msg_buf, msg->cle, sizeof(msg->cle)) < 0) return -1;
+    if (flags & CLE && concat_to_array(msg_buf, msg->cle, sizeof(msg->cle)) < 0) return -1;
 
-    if (flags & NUMV && concat_to_buf(msg_buf, &msg->numv, sizeof(msg->numv)) < 0) return -1;
+    if (flags & NUMV && concat_to_array(msg_buf, &msg->numv, sizeof(msg->numv)) < 0) return -1;
 
-    if (flags & PRIX && concat_to_buf(msg_buf, &msg->prix, sizeof(msg->prix)) < 0) return -1;
+    if (flags & PRIX && concat_to_array(msg_buf, &msg->prix, sizeof(msg->prix)) < 0) return -1;
 
-    if (flags & NB && concat_to_buf(msg_buf, &msg->nb, sizeof(msg->nb)) < 0) return -1;
+    if (flags & NB && concat_to_array(msg_buf, &msg->nb, sizeof(msg->nb)) < 0) return -1;
 
     return 0;
 }

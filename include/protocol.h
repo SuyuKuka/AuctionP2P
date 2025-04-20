@@ -61,71 +61,71 @@ typedef struct message {
     uint16_t nb;    /* Nombre d'un type de message concaténé à la suite. */
 } message;
 
-/* Structure pour un buffer de taille variable. */
-typedef struct msg_buffer {
-    char *buf;   /* Buffer. */
-    size_t size; /* Taille totale du buffer. */
-    size_t len;  /* Taille actuelle du buffer. */
-} msg_buffer;
+/* Structure pour un tableau de taille variable. */
+typedef struct dyn_array {
+    void *array; /* Tableau. */
+    size_t size; /* Taille totale. */
+    size_t len;  /* Taille actuelle. */
+} dyn_array;
 
 /**
- * @brief Initialise `msg_buf` de taille initiale `size`.
+ * @brief Initialise `arr` de taille initiale `size`.
  *
  * Si `malloc` échoue, tous les champs sont mis à `0`.
  *
- * @param[in,out]   msg_buf Buffer.
+ * @param[in,out]   arr Tableau dynamique.
  * @param[in]       size Taille initiale.
  *
  * @return `-1` en cas d'erreur, `0` sinon.
  */
-int init_msg_buffer(msg_buffer *msg_buf, size_t size);
+int init_dyn_array(dyn_array *arr, size_t size);
 /**
- * @brief Réalloue `msg_buf->buf` en doublant sa taille.
+ * @brief Réalloue `arr->array` en doublant sa taille.
  *
  * Si `realloc` échoue, il n'y a aucun changement.
  *
- * @param[in,out]   msg_buf Buffer.
+ * @param[in,out]   arr Tableau dynamique.
  *
  * @return `-1` en cas d'erreur, `0` sinon.
  */
-int realloc_msg_buffer(msg_buffer *msg_buf);
+int realloc_dyn_array(dyn_array *arr);
 /**
- * @brief Libère la mémoire utilisée par le buffer.
+ * @brief Libère la mémoire utilisée par le tableau dynamique.
  *
- * @param[in]   msg_buf Buffer.
+ * @param[in]   arr Tableau dynamique.
  */
-void free_msg_buffer(msg_buffer msg_buffer);
+void free_dyn_array(dyn_array arr);
 /**
- * @brief Ajoute `data` à la suite dans le buffer.
+ * @brief Ajoute `data` à la suite dans le tableau.
  *
- * La méthode réalloue le buffer si la taille des données est plus grande que la
- * taille restante dans le buffer (`realloc_msg_buffer`).
+ * La méthode réalloue le tableau si la taille des données est plus grande que la
+ * taille restante dans le tableau (`realloc_dyn_array`).
  *
- * @param[in,out]   msg_buf Buffer.
+ * @param[in,out]   arr Tableau dynamique.
  * @param[in]       data Données.
  * @param[in]       data_size Taille des données.
  *
  * @return `-1` en cas d'erreur, `0` sinon.
  */
-int concat_to_buf(msg_buffer *msg_buf, const void *data, size_t data_size);
+int concat_to_array(dyn_array *arr, const void *data, size_t data_size);
 /**
  * @brief Ajoute les données contenues dans `msg` spécifiées par les `flags` à
- * la suite du buffer.
+ * la suite du tableau.
  *
  * Exemple :
  * Si `flags = CODE | ID`, alors les champs `msg->code` et `msg->id` seront
- * concaténé à `msg_buf`.
+ * concaténé à `arr`.
  *
- * La méthode réalloue le buffer si la taille des données est plus grande que la
- * taille restante dans le buffer (`concat_to_buf`).
+ * La méthode réalloue le tableau si la taille des données est plus grande que la
+ * taille restante dans le tableau (`concat_to_array`).
  *
- * @param[in,out]   msg_buf Buffer.
+ * @param[in,out]   arr Buffer.
  * @param[in]       msg Message.
  * @param[in]       flags Champs à mettre dans le buffer.
  *
  * @return `-1` en cas d'erreur, `0` sinon.
  */
-int concat_msg_to_buf(msg_buffer *msg_buf, message *msg, unsigned int flags);
+int concat_msg_to_buf(dyn_array *arr, message *msg, unsigned int flags);
 /**
  * @brief Ajoute les données contenues dans `buf` spécifiées par les `flags` dans `msg`.
  *
