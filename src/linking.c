@@ -52,11 +52,11 @@ int send_join_request(int sock, struct sockaddr_in6 linking_addr) {
     memset(&msg, 0, sizeof(msg));
     msg.code = JOIN_REQ;
 
-    msg_buffer msg_buf;
-    if (init_msg_buffer(&msg_buf, sizeof(uint8_t)) < 0) return -1;
+    dyn_array msg_buf;
+    if (init_dyn_array(&msg_buf, sizeof(uint8_t)) < 0) return -1;
     if (concat_msg_to_buf(&msg_buf, &msg, CODE) < 0) goto error;
 
-    if (sendto(sock, msg_buf.buf, msg_buf.len, 0, (struct sockaddr *)&linking_addr,
+    if (sendto(sock, msg_buf.array, msg_buf.len, 0, (struct sockaddr *)&linking_addr,
                sizeof(linking_addr)) < 0) {
         perror("[ERROR] send");
         goto error;
@@ -65,7 +65,7 @@ int send_join_request(int sock, struct sockaddr_in6 linking_addr) {
     return 0;
 
 error:
-    free_msg_buffer(msg_buf);
+    free_dyn_array(msg_buf);
     return -1;
 }
 
@@ -163,10 +163,10 @@ int handle_join_requests(pers_sockets socks, struct sockaddr_in6 linking_addr) {
             memcpy(msg.ip, socks.addr.sin6_addr.__in6_u.__u6_addr8, 16);
             msg.port = socks.addr.sin6_port;
 
-            msg_buffer msg_buf;
-            if (init_msg_buffer(&msg_buf, sizeof(uint8_t)) < 0) continue;
+            dyn_array msg_buf;
+            if (init_dyn_array(&msg_buf, sizeof(uint8_t)) < 0) continue;
             if (concat_msg_to_buf(&msg_buf, &msg, CODE | ID | IP | PORT) < 0) {
-                free_msg_buffer(msg_buf);
+                free_dyn_array(msg_buf);
                 continue;
             }
 
@@ -188,7 +188,7 @@ int handle_join_requests(pers_sockets socks, struct sockaddr_in6 linking_addr) {
             }
 
             // Envoi de la réponse.
-            if (write_nb(sock, msg_buf.buf, msg_buf.len, MILLI(5)) < 0) {
+            if (write_nb(sock, msg_buf.array, msg_buf.len, MILLI(5)) < 0) {
                 perror("[ERROR] send");
                 goto error;
             }
@@ -197,7 +197,7 @@ int handle_join_requests(pers_sockets socks, struct sockaddr_in6 linking_addr) {
 
         error:
             if (sock) close(sock);
-            free_msg_buffer(msg_buf);
+            free_dyn_array(msg_buf);
         }
     }
 
