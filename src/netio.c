@@ -22,6 +22,7 @@ int read_nb(int sock, void *buf, size_t n, int timeout) {
             }
             if (n_read == 0) {
                 fprintf(stderr, "[WARN] Connection closed by peer\n");
+                if (pos == n) return 0;
                 return -1;
             }
 

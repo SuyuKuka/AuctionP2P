@@ -173,7 +173,7 @@ int await_join_req_response(int sock, dyn_array *peers_data) {
                 peer_data p = ((peer_data *)(peers_data->array))[0];
                 char ip_str[INET6_ADDRSTRLEN];
                 if (inet_ntop(AF_INET6, p.ip, ip_str, sizeof(ip_str)))
-                    printf("[DEBUG] Response received!\n[DEBUG] From peer %d of ip %s:%d.\n",
+                    printf("[DEBUG] Response received!\n[DEBUG] From peer %d of ip %s %d.\n",
                            ntohs(p.id), ip_str, ntohs(p.port));
                 // ===== DEBUG =====
             }
@@ -242,7 +242,8 @@ int send_pers_data_to_peer(pers_data p_data, peer_data peer, int sock) {
     // ===== DEBUG =====
     char ip_str[INET6_ADDRSTRLEN];
     if (inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str)))
-        printf("[DEBUG] Sharing info to peer %d of ip %s:%d.\n", peer.id, ip_str, ntohs(peer.port));
+        printf("[DEBUG] Sharing info to peer %d of ip %s %d.\n", ntohs(peer.id), ip_str,
+               ntohs(peer.port));
     // ===== DEBUG =====
 
     // Connexion via TCP sur l'adresse du pair.
@@ -313,7 +314,7 @@ void *handle_join_requests(void *params) {
         // ===== DEBUG =====
         char ip_str[INET6_ADDRSTRLEN];
         if (inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str)))
-            printf("[DEBUG] Join request received from: %s:%d\n", ip_str, ntohs(addr.sin6_port));
+            printf("[DEBUG] Join request received from: %s %d\n", ip_str, ntohs(addr.sin6_port));
         // ===== DEBUG =====
 
         // Réponse à l'expéditeur.
@@ -408,7 +409,7 @@ void *handle_data_sharing(void *params) {
                     ((peer_data *)(p.peers_data->array))[p.peers_data->len % sizeof(peer_data *)];
                 char ip_str[INET6_ADDRSTRLEN];
                 if (inet_ntop(AF_INET6, peer.ip, ip_str, sizeof(ip_str)))
-                    printf("[DEBUG] Address shared! From peer %d of ip %s:%d.\n", ntohs(peer.id),
+                    printf("[DEBUG] Address shared! From peer %d of ip %s %d.\n", ntohs(peer.id),
                            ip_str, ntohs(peer.port));
                 // ===== DEBUG =====
             }
