@@ -10,8 +10,8 @@
 #include <unistd.h>
 
 #include "linking.h"
+#include "netutils.h"
 #include "protocol.h"
-#include "utils.h"
 
 #define LINKING_IP "ff12::feed:bee"
 #define AUCTIONS_IP "ff12::add:beef"
@@ -48,8 +48,8 @@ int main(int argc, char const *argv[]) {
 
     // ===== DEBUG =====
     char ip_str[INET6_ADDRSTRLEN];
-    inet_ntop(AF_INET6, &personal_addr.sin6_addr, ip_str, sizeof(ip_str));
-    printf("[DEBUG] Personal addr: %s:%d\n", ip_str, ntohs(personal_addr.sin6_port));
+    if (inet_ntop(AF_INET6, &personal_addr.sin6_addr, ip_str, sizeof(ip_str)))
+        printf("[DEBUG] Personal addr: %s:%d\n", ip_str, ntohs(personal_addr.sin6_port));
     // ===== DEBUG =====
 
     // Initialisation tcp_serv_sock.
@@ -65,18 +65,17 @@ int main(int argc, char const *argv[]) {
     memset(&p_data.cle, 0, sizeof(p_data.cle));
 
     // Demande d'adhésion au système d'enchères
-    res = handle_linking(p_data, peers_data, linking_addr);
+    res = handle_linking(&p_data, &peers_data, linking_addr);
     if (res == 0) {
         printf("Nobody connected, awaiting new peers...\n");
     } else if (res < 0) {
         goto error;
     }
 
-    // TODO: A appeler dans un autre thread ?
     join_req_params join_req_p = {.p_data = p_data, .linking_addr = linking_addr};
     pthread_t join_req_thread;
     pthread_create(&join_req_thread, NULL, handle_join_requests, &join_req_p);
-    data_sharing_params sharing_p = {.p_data = p_data, .peers_data = peers_data};
+    data_sharing_params sharing_p = {.p_data = p_data, .peers_data = &peers_data};
     pthread_t d_sharing_thread;
     pthread_create(&d_sharing_thread, NULL, handle_data_sharing, &sharing_p);
 

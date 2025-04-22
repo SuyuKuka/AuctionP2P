@@ -1,6 +1,6 @@
 #define _POSIX_C_SOURCE 200112L
 
-#include "utils.h"
+#include "netutils.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -9,93 +9,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-
-int read_nb(int sock, char *buf, size_t n, int timeout) {
-    struct pollfd fd = {.fd = sock, .events = POLLIN};
-
-    int poll_ret;
-    ssize_t n_read;
-    size_t pos = 0;
-    while (pos < n && (poll_ret = poll(&fd, 1, timeout))) {
-        if (fd.revents & POLLIN) {
-            n_read = recv(sock, buf + pos, n - pos, 0);
-            if (n_read < 0) {
-                if (errno == EAGAIN || errno == EWOULDBLOCK) continue;
-                perror("[ERROR] recv");
-                return -1;
-            }
-            if (n_read == 0) {
-                perror("[WARN] Connection closed by peer");
-                return -1;
-            }
-
-            pos += n_read;
-        }
-    }
-
-    if (poll_ret < 0) {
-        perror("[ERROR] poll");
-        return -1;
-    } else if (poll_ret == 0) {
-        perror("[WARN] Timeout on read");
-        return -1;
-    }
-
-    if (pos > n) {
-        fprintf(stderr, "[ERROR] Invalid message format received.\n");
-        return -1;
-    }
-
-    return 0;
-}
-
-int write_nb(int sock, char *buf, size_t n, int timeout) {
-    struct pollfd fd = {.fd = sock, .events = POLLOUT};
-
-    int poll_ret;
-    size_t pos = 0;
-    while (pos < n && (poll_ret = poll(&fd, 1, timeout))) {
-        if (fd.revents & POLLOUT) {
-            ssize_t n_sent = send(sock, buf + pos, n - pos, 0);
-            if (n_sent < 0) {
-                if (errno == EAGAIN || errno == EWOULDBLOCK) continue;
-                perror("[ERROR] send");
-                return -1;
-            }
-            pos += n_sent;
-        }
-    }
-
-    if (poll_ret < 0) {
-        perror("[ERROR] poll");
-        return -1;
-    } else if (poll_ret == 0) {
-        perror("[WARN] Timeout on write");
-        return -1;
-    }
-
-    return 0;
-}
-
-int set_nonblock(int sock) {
-    int flags;
-
-    if ((flags = fcntl(sock, F_GETFL, 0)) < 0) {
-        perror("[ERROR] fcntl F_GETFL");
-        return -1;
-    }
-
-    if (fcntl(sock, F_SETFL, flags | O_NONBLOCK) < 0) {
-        perror("[ERROR] fcntl F_SETFL");
-        return -1;
-    }
-
-    return 0;
-}
-
-/**************************************************************************************************
- *                                        init addr/socket                                        *
- **************************************************************************************************/
 
 int init_multicast_addr(struct sockaddr_in6 *addr, const char *ip, int port) {
     memset(addr, 0, sizeof(struct sockaddr_in6));
