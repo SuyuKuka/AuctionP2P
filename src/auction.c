@@ -49,7 +49,7 @@ int main(int argc, char const *argv[]) {
     // ===== DEBUG =====
     char ip_str[INET6_ADDRSTRLEN];
     if (inet_ntop(AF_INET6, &personal_addr.sin6_addr, ip_str, sizeof(ip_str)))
-        printf("[DEBUG] Personal addr: %s:%d\n", ip_str, ntohs(personal_addr.sin6_port));
+        printf("[DEBUG] Personal addr: %s %d\n", ip_str, ntohs(personal_addr.sin6_port));
     // ===== DEBUG =====
 
     // Initialisation tcp_serv_sock.

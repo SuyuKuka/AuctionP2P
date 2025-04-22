@@ -71,7 +71,7 @@ int verify_id(dyn_array peers_data, uint16_t id);
  * @brief Envoi du message contenant la validité de l'ID. (`code = 50` ou `code = 51`).
  *
  * @param[in]   sock Socket TCP.
- * @param[in]   id ID reçu ou le nouvel ID.
+ * @param[in]   id ID reçu ou le nouvel ID en /!\ big-endian.
  * @param[in]   validity Validité de l'id (`0` ou `1`).
  *
  * @return `-1` en cas d'erreur, `0` sinon.
@@ -79,7 +79,7 @@ int verify_id(dyn_array peers_data, uint16_t id);
 int send_id_validity(int sock, int id, int validity);
 
 /**************************************************************************************************
- *                       Méthode principale qui gère l'adhésion au système. *
+ *                       Méthode principale qui gère l'adhésion au système.                       *
  **************************************************************************************************/
 
 int handle_linking(pers_data *p_data, dyn_array *peers_data, struct sockaddr_in6 linking_addr) {
@@ -436,13 +436,11 @@ int send_id_validity(int sock, int id, int validity) {
     message msg;
     memset(&msg, 0, sizeof(msg));
     msg.code = validity ? JOIN_VALID_ID : JOIN_INVALID_ID;
-    msg.id = htons(id);
-
-    int flags = CODE | (validity ? 0 : ID);
+    msg.id = id;
 
     dyn_array msg_buf;
-    if (init_dyn_array(&msg_buf, sizeof(uint8_t)) < 0) return -1;
-    if (concat_msg_to_buf(&msg_buf, &msg, flags) < 0) goto error;
+    if (init_dyn_array(&msg_buf, 3) < 0) return -1;
+    if (concat_msg_to_buf(&msg_buf, &msg, CODE | ID) < 0) goto error;
 
     if (send(sock, msg_buf.array, msg_buf.len, 0) < 0) {
         perror("[ERROR] send");
