@@ -66,7 +66,7 @@ typedef struct message {
 } message;
 
 /* Structure contenant l'ID, l'adresse et la clé d'un pair.
-   /!\ IP et port en big-endian. /!\ */
+   /!\ ID, IP et port en big-endian. /!\ */
 typedef struct peer_data {
     uint16_t id;        /* Identifiant. */
     uint8_t ip[16];     /* Adresse IP. */

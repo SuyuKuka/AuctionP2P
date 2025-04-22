@@ -64,7 +64,7 @@ int await_pers_data_sharing_res(pers_data *p_data, int sock);
  * @param[in,out]   peers_data Données des pairs.
  * @param[in]       id ID reçu.
  *
- * @return `id` si l'ID est unique, sinon un nouvel ID.
+ * @return `id` si l'ID est unique, sinon un nouvel ID en /!\ big-endian.
  */
 int verify_id(dyn_array peers_data, uint16_t id);
 /**
@@ -173,8 +173,8 @@ int await_join_req_response(int sock, dyn_array *peers_data) {
                 peer_data p = ((peer_data *)(peers_data->array))[0];
                 char ip_str[INET6_ADDRSTRLEN];
                 if (inet_ntop(AF_INET6, p.ip, ip_str, sizeof(ip_str)))
-                    printf("[DEBUG] Response received!\n[DEBUG] From peer %d of ip %s:%d.\n", p.id,
-                           ip_str, ntohs(p.port));
+                    printf("[DEBUG] Response received!\n[DEBUG] From peer %d of ip %s:%d.\n",
+                           ntohs(p.id), ip_str, ntohs(p.port));
                 // ===== DEBUG =====
             }
 
@@ -199,23 +199,22 @@ int handle_pers_data_sharing(pers_data *p_data, dyn_array peers_data) {
     int ret;
     peer_data peer;
     size_t n_peer = 0;
-    int sock;  // Socket TCP.
+    // Socket TCP.
+    int sock = socket(PF_INET6, SOCK_STREAM, 0);
+    if (sock < 0) {
+        perror("[ERROR] socket");
+        return -1;
+    }
+
     do {
         peer = ((peer_data *)peers_data.array)[n_peer++];
-
-        sock = socket(PF_INET6, SOCK_STREAM, 0);
-        if (sock < 0) {
-            perror("[ERROR] socket");
-            continue;
-        }
-
-        printf("[DEBUG] Trying to share address and key to peer %zu.\n", n_peer);
+        printf("[DEBUG] Trying to share address and key to peer %d.\n", ntohs(peer.id));
     } while ((ret = send_pers_data_to_peer(*p_data, peer, sock)) < 0 &&
              n_peer < peers_data.len % sizeof(peer_data));
 
     if (ret == 0) ret = await_pers_data_sharing_res(p_data, sock);
 
-    if (sock) close(sock);
+    close(sock);
     return ret;
 }
 
@@ -409,8 +408,8 @@ void *handle_data_sharing(void *params) {
                     ((peer_data *)(p.peers_data->array))[p.peers_data->len % sizeof(peer_data *)];
                 char ip_str[INET6_ADDRSTRLEN];
                 if (inet_ntop(AF_INET6, peer.ip, ip_str, sizeof(ip_str)))
-                    printf("[DEBUG] Address shared! From peer %d of ip %s:%d.\n", peer.id, ip_str,
-                           ntohs(peer.port));
+                    printf("[DEBUG] Address shared! From peer %d of ip %s:%d.\n", ntohs(peer.id),
+                           ip_str, ntohs(peer.port));
                 // ===== DEBUG =====
             }
         }
@@ -427,7 +426,7 @@ int verify_id(dyn_array peers_data, uint16_t id) {
         for (size_t i = 0; i < peers_data.len; i++) {
             if (((peer_data *)peers_data.array)[i].id == id) exists = 1;
         }
-        if (exists) id = rand() % UINT16_MAX;
+        if (exists) id = htons(rand() % UINT16_MAX);
     } while (exists);
     return id;
 }
@@ -436,7 +435,7 @@ int send_id_validity(int sock, int id, int validity) {
     message msg;
     memset(&msg, 0, sizeof(msg));
     msg.code = validity ? JOIN_VALID_ID : JOIN_INVALID_ID;
-    msg.id = id;
+    msg.id = htons(id);
 
     int flags = CODE | (validity ? 0 : ID);
 

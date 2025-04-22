@@ -21,7 +21,7 @@ int read_nb(int sock, void *buf, size_t n, int timeout) {
                 return -1;
             }
             if (n_read == 0) {
-                perror("[WARN] Connection closed by peer");
+                fprintf(stderr, "[WARN] Connection closed by peer\n");
                 return -1;
             }
 
@@ -33,7 +33,7 @@ int read_nb(int sock, void *buf, size_t n, int timeout) {
         perror("[ERROR] poll");
         return -1;
     } else if (poll_ret == 0) {
-        perror("[WARN] Timeout on read");
+        fprintf(stderr, "[WARN] Timeout on read\n");
         return -1;
     }
 
@@ -66,7 +66,7 @@ int write_nb(int sock, void *buf, size_t n, int timeout) {
         perror("[ERROR] poll");
         return -1;
     } else if (poll_ret == 0) {
-        perror("[WARN] Timeout on write");
+        fprintf(stderr, "[WARN] Timeout on write\n");
         return -1;
     }
 

@@ -61,7 +61,7 @@ int main(int argc, char const *argv[]) {
     p_data.addr = personal_addr;
     p_data.udp_sock = udp_sock;
     p_data.tcp_serv_sock = tcp_serv_sock;
-    p_data.id = rand() % UINT16_MAX;
+    p_data.id = htons(rand() % UINT16_MAX);
     memset(&p_data.cle, 0, sizeof(p_data.cle));
 
     // Demande d'adhésion au système d'enchères
@@ -74,10 +74,15 @@ int main(int argc, char const *argv[]) {
 
     join_req_params join_req_p = {.p_data = p_data, .linking_addr = linking_addr};
     pthread_t join_req_thread;
-    pthread_create(&join_req_thread, NULL, handle_join_requests, &join_req_p);
+    if (pthread_create(&join_req_thread, NULL, handle_join_requests, &join_req_p) < 0) {
+        goto error;
+    }
+
     data_sharing_params sharing_p = {.p_data = p_data, .peers_data = &peers_data};
     pthread_t d_sharing_thread;
-    pthread_create(&d_sharing_thread, NULL, handle_data_sharing, &sharing_p);
+    if (pthread_create(&d_sharing_thread, NULL, handle_data_sharing, &sharing_p) < 0) {
+        goto error;
+    }
 
     while (1);
     // TODO: Etape 3
