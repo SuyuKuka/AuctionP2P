@@ -408,7 +408,7 @@ void *handle_data_sharing(void *params) {
 
                 // ===== DEBUG =====
                 peer_data peer =
-                    ((peer_data *)(p.peers_data->array))[p.peers_data->len % sizeof(peer_data *)];
+                    ((peer_data *)(p.peers_data->array))[p.peers_data->len % sizeof(peer_data)];
                 char ip_str[INET6_ADDRSTRLEN];
                 if (inet_ntop(AF_INET6, peer.ip, ip_str, sizeof(ip_str)))
                     printf("[DEBUG] Address shared! From peer %d of ip %s %d.\n", ntohs(peer.id),
