@@ -280,6 +280,8 @@ int await_pers_data_sharing_res(pers_data *p_data, int sock) {
     } else if (buf[0] != JOIN_VALID_ID) {
         printf("[DEBUG] Invalid ID response code received: %d.\n", buf[0]);
         return -1;
+    } else {
+        printf("[DEBUG] Valid ID response code received: %d.\n", buf[0]);
     }
 
     return 0;

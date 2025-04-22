@@ -46,12 +46,6 @@ int main(int argc, char const *argv[]) {
         init_personal_addr(&personal_addr, udp_sock_port) < 0)
         goto error;
 
-    // ===== DEBUG =====
-    char ip_str[INET6_ADDRSTRLEN];
-    if (inet_ntop(AF_INET6, &personal_addr.sin6_addr, ip_str, sizeof(ip_str)))
-        printf("[DEBUG] Personal addr: %s %d\n", ip_str, ntohs(personal_addr.sin6_port));
-    // ===== DEBUG =====
-
     // Initialisation tcp_serv_sock.
     tcp_serv_sock = make_tcp_server_socket(udp_sock_port);
     if (tcp_serv_sock < 0) goto error;
@@ -63,6 +57,13 @@ int main(int argc, char const *argv[]) {
     p_data.tcp_serv_sock = tcp_serv_sock;
     p_data.id = htons(rand() % UINT16_MAX);
     memset(&p_data.cle, 0, sizeof(p_data.cle));
+
+    // ===== DEBUG =====
+    char ip_str[INET6_ADDRSTRLEN];
+    if (inet_ntop(AF_INET6, &personal_addr.sin6_addr, ip_str, sizeof(ip_str)))
+        printf("[DEBUG] Personal addr: %s %d\n[DEBUG] Personal ID: %d\n", ip_str,
+               ntohs(personal_addr.sin6_port), ntohs(p_data.id));
+    // ===== DEBUG =====
 
     // Demande d'adhésion au système d'enchères
     res = handle_linking(&p_data, &peers_data, linking_addr);
