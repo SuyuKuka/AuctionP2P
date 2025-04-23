@@ -184,7 +184,10 @@ int await_join_req_response(int sock, dyn_array *peers_data) {
 
             // Accepte la connexion.
             int peer = accept(sock, NULL, NULL);
-            if (peer < 0) continue;
+            if (peer < 0) {
+                perror("[ERROR] accept");
+                continue;
+            }
 
             if (set_nonblock(peer) < 0) goto error;
 
@@ -344,8 +347,12 @@ int handle_peers_data_sharing(struct sockaddr_in6 *auction_addr, dyn_array *peer
 
     // Accepte la connexion, lecture du message d'entête.
     int peer_sock = accept(sock, NULL, NULL);
-    if (peer_sock < 0) return -1;
-    if (set_nonblock(peer_sock) < 0 || read_nb(sock, &buf, header_size, MILLI(5)) < 0) goto error;
+    if (peer_sock < 0) {
+        perror("[ERROR] accept");
+        return -1;
+    }
+    if (set_nonblock(peer_sock) < 0 || read_nb(peer_sock, &buf, header_size, MILLI(5)) < 0)
+        goto error;
 
     buf_to_msg(buf, &msg, CODE | ID | IP | PORT | NB);
 
@@ -372,12 +379,13 @@ int handle_peers_data_sharing(struct sockaddr_in6 *auction_addr, dyn_array *peer
         memset(&msg, 0, sizeof(msg));
         memset(&buf, 0, sizeof(buf));
 
-        if (read_nb(sock, &buf, info_size, MILLI(5)) < 0) goto error;
+        if (read_nb(peer_sock, &buf, info_size, MILLI(5)) < 0) goto error;
         buf_to_msg(buf, &msg, ID | IP | PORT | CLE);
 
         // ===== DEBUG =====
         if (inet_ntop(AF_INET6, msg.ip, ip_str, sizeof(ip_str)))
-            printf("[DEBUG] Info received: peer %d of ip %s %d\n", msg.id, ip_str, ntohs(msg.port));
+            printf("[DEBUG] Info received: peer %d of ip %s %d\n", ntohs(msg.id), ip_str,
+                   ntohs(msg.port));
         // ===== DEBUG =====
 
         peer_data peer = {.id = msg.id, .port = msg.port};
@@ -488,7 +496,10 @@ void *handle_data_sharing(void *params) {
 
         // Accepte la connexion.
         int peer_sock = accept(p.p_data.tcp_serv_sock, NULL, NULL);
-        if (peer_sock < 0) continue;
+        if (peer_sock < 0) {
+            perror("[ERROR] accept");
+            continue;
+        }
 
         printf("[DEBUG] A peer shared their data.\n");
 
