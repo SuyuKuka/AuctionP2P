@@ -9,7 +9,7 @@
  * @brief Initialise l'adresse `addr` de type multicast.
  *
  * @param[in,out]   addr Pointeur sur la structure à initialiser.
- * @param[in]       ip Adresse IP.
+ * @param[in]       ip Adresse IP au format présentation.
  * @param[in]       port Port.
  *
  * @return `-1` en cas d'erreur, `0` sinon.
