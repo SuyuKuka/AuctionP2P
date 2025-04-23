@@ -201,7 +201,7 @@ int await_join_req_response(int sock, dyn_array *peers_data) {
                 // Ajout des données du pair dans `peers_data`.
 
                 peer_data data = {.id = msg.id, .port = msg.port};
-                memcpy(&data.ip, &msg.ip, sizeof(msg.ip));
+                memcpy(&data.ip, &msg.ip, sizeof(data.ip));
                 memset(data.cle, 0, KEY_SIZE);
 
                 if (concat_to_array(peers_data, &data, sizeof(data)) < 0) goto error;
@@ -275,7 +275,7 @@ int send_pers_data_to_peer(pers_data p_data, peer_data peer, int sock) {
     memset(&addr, 0, sizeof(addr));
     addr.sin6_family = AF_INET6;
     addr.sin6_port = peer.port;
-    memcpy(&addr.sin6_addr.s6_addr, &peer.ip, sizeof(peer.ip));
+    memcpy(&addr.sin6_addr.s6_addr, &peer.ip, sizeof(addr.sin6_addr.s6_addr));
 
     // ===== DEBUG =====
     char ip_str[INET6_ADDRSTRLEN];
@@ -432,7 +432,7 @@ void *handle_join_requests(void *params) {
         memset(&msg, 0, sizeof(msg));
         msg.code = JOIN_REQ_RES;
         msg.id = p.p_data.id;
-        memcpy(msg.ip, p.p_data.addr.sin6_addr.s6_addr, 16);
+        memcpy(msg.ip, p.p_data.addr.sin6_addr.s6_addr, sizeof(msg.ip));
         msg.port = p.p_data.addr.sin6_port;
 
         dyn_array msg_buf;
@@ -625,7 +625,7 @@ int send_peer_data_to_all_peers(dyn_array peers_data) {
         struct sockaddr_in6 addr;
         memset(&addr, 0, sizeof(addr));
         addr.sin6_family = AF_INET6;
-        memcpy(&addr.sin6_addr, other_peer.ip, sizeof(addr.sin6_addr));
+        memcpy(&addr.sin6_addr.s6_addr, other_peer.ip, sizeof(addr.sin6_addr.s6_addr));
         addr.sin6_port = other_peer.port;
 
         // Socket TCP.
@@ -687,7 +687,7 @@ int send_all_peers_data_to_peer(const uint8_t *auction_ip, uint16_t auction_port
     struct sockaddr_in6 addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin6_family = AF_INET6;
-    memcpy(&addr.sin6_addr, peer.ip, sizeof(addr.sin6_addr));
+    memcpy(&addr.sin6_addr.s6_addr, peer.ip, sizeof(addr.sin6_addr.s6_addr));
     addr.sin6_port = peer.port;
 
     // Socket TCP.
@@ -713,6 +713,7 @@ int send_all_peers_data_to_peer(const uint8_t *auction_ip, uint16_t auction_port
     printf("[DEBUG] Shared auction address to peer.\n");
 
     // Envoi des infos des autres pairs.
+    printf("[DEBUG] Sharing %zu other peers info to peer...\n", n_peer - 1);
     for (size_t i = 0; i < n_peer - 1; i++) {
         peer_data other_peer = peers[i];
 
@@ -725,11 +726,11 @@ int send_all_peers_data_to_peer(const uint8_t *auction_ip, uint16_t auction_port
         msg.port = other_peer.port;
         memcpy(msg.cle, other_peer.cle, sizeof(msg.cle));
 
-        if (concat_msg_to_buf(&msg_buf, &msg, CODE | ID | IP | PORT | CLE) < 0 ||
+        if (concat_msg_to_buf(&msg_buf, &msg, ID | IP | PORT | CLE) < 0 ||
             write_nb(sock, msg_buf.array, msg_buf.len, MILLI(5)) < 0)
             goto error;
 
-        printf("[DEBUG] Shared another peer's info to peer.\n");
+        printf("[DEBUG] Shared one peer's info to peer.\n");
     }
 
     close(sock);
