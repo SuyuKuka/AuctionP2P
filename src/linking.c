@@ -58,6 +58,18 @@ int send_pers_data_to_peer(pers_data p_data, peer_data peer, int sock);
 int await_pers_data_sharing_res(pers_data *p_data, int sock);
 
 /**
+ * @brief Gère l'initialisation de l'adresse d'enchères en recevant cette adresse de la part du pair
+ * choisi précédemment, ainsi que la réception des infos des autres pairs du système. (`code = 7`).
+ *
+ * @param[in,out]   auction_addr Adresse d'enchères.
+ * @param[in,out]   peers_data Données des pairs.
+ * @param[in]       sock Socket serveur TCP.
+ *
+ * @return `-1` en cas d'erreur, `0` sinon.
+ */
+int handle_peers_data_sharing(struct sockaddr_in6 *auction_addr, dyn_array *peers_data, int sock);
+
+/**
  * @brief Vérifie que l'ID du pair ne soit pas déjà utilisé. Si c'est le cas, un nouvel ID est
  * renvoyé.
  *
@@ -86,12 +98,26 @@ int send_id_validity(int sock, int id, int validity);
  * @return `-1` en cas d'erreur, `0` sinon.
  */
 int send_peer_data_to_all_peers(dyn_array peers_data);
+/**
+ * @brief Envoi de l'en-tête, contenant l'adresse d'enchères, et des infos des autres pairs du
+ * système au pair demandant l'adhésion au système. (`code = 7`).
+ *
+ * @param[in]   auction_ip IP de l'adresse d'enchères.
+ * @param[in]   auction_port Port de l'adresse d'enchères.
+ * @param[in]   peers_data Tableau contenant les infos des pairs.
+ * @param[in]   p_data Données personnelles (seulement l'ID est utilisé).
+ *
+ * @return `-1` en cas d'erreur, `0` sinon.
+ */
+int send_all_peers_data_to_peer(const uint8_t *auction_ip, uint16_t auction_port,
+                                dyn_array peers_data, pers_data p_data);
 
 /**************************************************************************************************
  *                       Méthode principale qui gère l'adhésion au système.                       *
  **************************************************************************************************/
 
-int handle_linking(pers_data *p_data, dyn_array *peers_data, struct sockaddr_in6 linking_addr) {
+int handle_linking(pers_data *p_data, dyn_array *peers_data, struct sockaddr_in6 linking_addr,
+                   struct sockaddr_in6 *auction_addr) {
     // b) 1. Envoi de la demande + attente de réponse.
     int attempts = 0;
     int res = 0;
@@ -109,7 +135,9 @@ int handle_linking(pers_data *p_data, dyn_array *peers_data, struct sockaddr_in6
     if (attempts == 3 && !res) return 0;
 
     // b) 4. Partage de l'adresse personnelle.
-    if (handle_pers_data_sharing(p_data, *peers_data) < 0) return -1;
+    if (handle_pers_data_sharing(p_data, *peers_data) < 0 ||
+        handle_peers_data_sharing(auction_addr, peers_data, p_data->tcp_serv_sock) < 0)
+        return -1;
 
     return 1;
 }
@@ -298,6 +326,76 @@ int await_pers_data_sharing_res(pers_data *p_data, int sock) {
 }
 
 /**************************************************************************************************
+ *                   Réception de l'adresse d'enchères + infos des autres pairs.                  *
+ **************************************************************************************************/
+
+int handle_peers_data_sharing(struct sockaddr_in6 *auction_addr, dyn_array *peers_data, int sock) {
+    printf("[DEBUG] Awaiting auction address and peers info sharing...\n");
+
+    message msg;
+    memset(&msg, 0, sizeof(msg));
+
+    size_t header_size =
+        sizeof(msg.code) + sizeof(msg.id) + sizeof(msg.ip) + sizeof(msg.port) + sizeof(msg.nb);
+    size_t info_size = sizeof(msg.id) + sizeof(msg.ip) + sizeof(msg.port) + sizeof(msg.cle);
+
+    char buf[info_size];
+    memset(&buf, 0, sizeof(buf));
+
+    // Accepte la connexion, lecture du message d'entête.
+    int peer_sock = accept(sock, NULL, NULL);
+    if (peer_sock < 0) return -1;
+    if (set_nonblock(peer_sock) < 0 || read_nb(sock, &buf, header_size, MILLI(5)) < 0) goto error;
+
+    buf_to_msg(buf, &msg, CODE | ID | IP | PORT | NB);
+
+    if (msg.code != JOIN_SHARE_ALL_INFO) {
+        fprintf(stderr, "[ERROR] Invalid message code received: %d\n", msg.code);
+        goto error;
+    }
+
+    // Initialisation de l'adresse d'enchères.
+    memset(auction_addr, 0, sizeof(*auction_addr));
+    auction_addr->sin6_family = AF_INET6;
+    memcpy(&auction_addr->sin6_addr, msg.ip, sizeof(auction_addr->sin6_addr));
+    auction_addr->sin6_port = msg.port;
+    auction_addr->sin6_scope_id = 0;
+
+    // ===== DEBUG =====
+    char ip_str[INET6_ADDRSTRLEN];
+    if (inet_ntop(AF_INET6, msg.ip, ip_str, sizeof(ip_str)))
+        printf("[DEBUG] Auction address received: %s %d\n", ip_str, ntohs(msg.port));
+    // ===== DEBUG =====
+
+    uint16_t nb = msg.nb;
+    for (uint16_t i = 0; i < nb - 1; i++) {
+        memset(&msg, 0, sizeof(msg));
+        memset(&buf, 0, sizeof(buf));
+
+        if (read_nb(sock, &buf, info_size, MILLI(5)) < 0) goto error;
+        buf_to_msg(buf, &msg, ID | IP | PORT | CLE);
+
+        // ===== DEBUG =====
+        if (inet_ntop(AF_INET6, msg.ip, ip_str, sizeof(ip_str)))
+            printf("[DEBUG] Info received: peer %d of ip %s %d\n", msg.id, ip_str, ntohs(msg.port));
+        // ===== DEBUG =====
+
+        peer_data peer = {.id = msg.id, .port = msg.port};
+        memcpy(peer.ip, msg.ip, sizeof(peer.ip));
+        memcpy(peer.cle, msg.cle, sizeof(peer.cle));
+
+        if (concat_to_array(peers_data, &peer, sizeof(peer)) < 0) goto error;
+    }
+
+    close(peer_sock);
+    return 0;
+
+error:
+    if (peer_sock) close(peer_sock);
+    return -1;
+}
+
+/**************************************************************************************************
  *                               Réception de messages côté pair Q.                               *
  **************************************************************************************************/
 
@@ -432,6 +530,14 @@ void *handle_data_sharing(void *params) {
                     fprintf(stderr, "[ERROR] Failed to share peer's info to all.\n");
                     goto error;
                 }
+
+                if (send_all_peers_data_to_peer(p.auction_ip, p.auction_port, *p.peers_data,
+                                                p.p_data) < 0) {
+                    fprintf(
+                        stderr,
+                        "[ERROR] Failed to share auction address and other peers info to peer.\n");
+                    goto error;
+                }
             }
         } else if (buf[0] == JOIN_SHARE_INFO_TO_ALL) {
             // Ajout des données du pair dans `peers_data`.
@@ -552,6 +658,86 @@ int send_peer_data_to_all_peers(dyn_array peers_data) {
     return 0;
 
 error:
+    free_dyn_array(msg_buf);
+    return -1;
+}
+
+int send_all_peers_data_to_peer(const uint8_t *auction_ip, uint16_t auction_port,
+                                dyn_array peers_data, pers_data p_data) {
+    printf("[DEBUG] Sharing auction address and other peers info to peer...\n");
+
+    const peer_data *peers = (peer_data *)(peers_data.array);
+    size_t n_peer = peers_data.len / sizeof(peer_data);
+    peer_data peer = peers[n_peer - 1];
+
+    message msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.code = JOIN_SHARE_ALL_INFO;
+    msg.id = p_data.id;
+    memcpy(msg.ip, auction_ip, sizeof(msg.ip));
+    msg.port = auction_port;
+    msg.nb = n_peer;
+
+    size_t msg_size =
+        sizeof(msg.code) + sizeof(msg.id) + sizeof(msg.ip) + sizeof(msg.port) + sizeof(msg.nb);
+    dyn_array msg_buf;
+    if (init_dyn_array(&msg_buf, msg_size) < 0) return -1;
+    if (concat_msg_to_buf(&msg_buf, &msg, CODE | ID | IP | PORT | NB) < 0) return -1;
+
+    struct sockaddr_in6 addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin6_family = AF_INET6;
+    memcpy(&addr.sin6_addr, peer.ip, sizeof(addr.sin6_addr));
+    addr.sin6_port = peer.port;
+
+    // Socket TCP.
+    int sock = socket(PF_INET6, SOCK_STREAM, 0);
+    if (sock < 0) {
+        perror("[ERROR] socket");
+        goto error;
+    }
+
+    // Connexion via TCP sur l'adresse du pair.
+    if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        perror("[ERROR] connect");
+        goto error;
+    }
+
+    if (set_nonblock(sock) < 0) {
+        goto error;
+    }
+
+    // Envoi de l'en-tête.
+    if (write_nb(sock, msg_buf.array, msg_buf.len, MILLI(5)) < 0) goto error;
+
+    printf("[DEBUG] Shared auction address to peer.\n");
+
+    // Envoi des infos des autres pairs.
+    for (size_t i = 0; i < n_peer - 1; i++) {
+        peer_data other_peer = peers[i];
+
+        // On vide le message et le buffer.
+        memset(&msg, 0, sizeof(msg));
+        msg_buf.len = 0;
+
+        msg.id = other_peer.id;
+        memcpy(msg.ip, other_peer.ip, sizeof(msg.ip));
+        msg.port = other_peer.port;
+        memcpy(msg.cle, other_peer.cle, sizeof(msg.cle));
+
+        if (concat_msg_to_buf(&msg_buf, &msg, CODE | ID | IP | PORT | CLE) < 0 ||
+            write_nb(sock, msg_buf.array, msg_buf.len, MILLI(5)) < 0)
+            goto error;
+
+        printf("[DEBUG] Shared another peer's info to peer.\n");
+    }
+
+    close(sock);
+    free_dyn_array(msg_buf);
+    return 0;
+
+error:
+    if (sock) close(sock);
     free_dyn_array(msg_buf);
     return -1;
 }

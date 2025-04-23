@@ -14,6 +14,8 @@ typedef struct join_req_params {
 typedef struct data_sharing_params {
     dyn_array *peers_data;
     pers_data p_data;
+    uint8_t auction_ip[16];
+    uint16_t auction_port;
 } data_sharing_params;
 
 /**
@@ -21,11 +23,13 @@ typedef struct data_sharing_params {
  *
  * @param[in,out]   p_data Données personnelles.
  * @param[in,out]   peers_data Adresses et clés des pairs.
- * @param[in]       linking_addr Adresse multicast.
+ * @param[in]       linking_addr Adresse de liaison multicast.
+ * @param[in,out]   auction_addr Adresse d'enchères multicast.
  *
  * @return `-1` en cas d'erreur, `0` s'il n'y a pas eu de réponse, `1` sinon.
  */
-int handle_linking(pers_data *p_data, dyn_array *peers_data, struct sockaddr_in6 linking_addr);
+int handle_linking(pers_data *p_data, dyn_array *peers_data, struct sockaddr_in6 linking_addr,
+                   struct sockaddr_in6 *auction_addr);
 /**
  * @brief Gère les demandes pour rejoindre le système d'enchères.
  *

@@ -66,9 +66,11 @@ int main(int argc, char const *argv[]) {
     // ===== DEBUG =====
 
     // Demande d'adhésion au système d'enchères
-    res = handle_linking(&p_data, &peers_data, linking_addr);
+    res = handle_linking(&p_data, &peers_data, linking_addr, &auction_addr);
     if (res == 0) {
+        // Initialisation de l'adresse de d'enchères.
         printf("Nobody connected, awaiting new peers...\n");
+        if (init_multicast_addr(&auction_addr, AUCTIONS_IP, AUCTIONS_PORT) < 0) goto error;
     } else if (res < 0) {
         goto error;
     }
@@ -79,7 +81,9 @@ int main(int argc, char const *argv[]) {
         goto error;
     }
 
-    data_sharing_params sharing_p = {.p_data = p_data, .peers_data = &peers_data};
+    data_sharing_params sharing_p = {
+        .p_data = p_data, .peers_data = &peers_data, .auction_port = auction_addr.sin6_port};
+    memcpy(sharing_p.auction_ip, &auction_addr.sin6_addr.s6_addr, sizeof(sharing_p.auction_ip));
     pthread_t d_sharing_thread;
     if (pthread_create(&d_sharing_thread, NULL, handle_data_sharing, &sharing_p) < 0) {
         goto error;
