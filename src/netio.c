@@ -14,7 +14,7 @@ int read_nb(int sock, void *buf, size_t n, int timeout) {
     size_t pos = 0;
     while (pos < n && (poll_ret = poll(&fd, 1, timeout))) {
         if (fd.revents & POLLIN) {
-            n_read = recv(sock, buf + pos, n - pos, 0);
+            n_read = recv(sock, (char *)buf + pos, n - pos, 0);
             if (n_read < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) continue;
                 perror("[ERROR] recv");
@@ -87,5 +87,45 @@ int set_nonblock(int sock) {
         return -1;
     }
 
+    return 0;
+}
+
+int send_msg_to(message msg, int flags, int sock, struct sockaddr *addr, socklen_t len) {
+    dyn_array msg_buf;
+    if (init_dyn_array(&msg_buf, sizeof(uint8_t)) < 0) return -1;
+    if (concat_msg_to_buf(&msg_buf, &msg, flags) < 0) goto error;
+
+    if (sendto(sock, msg_buf.array, msg_buf.len, 0, addr, len) < 0) {
+        perror("[ERROR] sendto");
+        goto error;
+    }
+
+    free_dyn_array(msg_buf);
+    return 0;
+
+error:
+    free_dyn_array(msg_buf);
+    return -1;
+}
+
+int write_msg(message msg, int flags, int sock, int timeout) {
+    int ret = 0;
+
+    dyn_array msg_buf;
+    size_t m_size = msg_size(flags);
+    if (init_dyn_array(&msg_buf, m_size) < 0) return -1;
+    if (concat_msg_to_buf(&msg_buf, &msg, flags) < 0 ||
+        write_nb(sock, msg_buf.array, msg_buf.len, timeout) < 0)
+        ret = -1;
+
+    free_dyn_array(msg_buf);
+    return ret;
+}
+
+int read_msg(int sock, message *msg, int flags, int timeout) {
+    size_t m_size = msg_size(flags);
+    char buf[m_size];
+    if (read_nb(sock, buf, sizeof(buf), timeout) < 0) return -1;
+    buf_to_msg(buf, msg, flags);
     return 0;
 }

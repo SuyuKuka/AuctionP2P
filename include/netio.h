@@ -3,6 +3,8 @@
 
 #include <stdlib.h>
 
+#include "protocol.h"
+
 /**
  * @brief Envoie `n` octets de `buf` vers `sock` avec une attente maximale `timeout`.
  *
@@ -36,5 +38,39 @@ int read_nb(int sock, void *buf, size_t n, int timeout);
  * @return `-1` en cas d'erreur, `0` sinon.
  */
 int set_nonblock(int sock);
+/**
+ * @brief Envoie le message à l'adresse `addr` depuis la socket `sock`.
+ *
+ * @param[in]   msg Message.
+ * @param[in]   flags Flags du message.
+ * @param[in]   sock Socket.
+ * @param[in]   addr Adresse.
+ * @param[in]   len Taille de l'adresse.
+ *
+ * @return `-1` en cas d'erreur, `0` sinon.
+ */
+int send_msg_to(message msg, int flags, int sock, struct sockaddr *addr, socklen_t len);
+/**
+ * @brief Envoie le message à la socket `sock`.
+ *
+ * @param[in]   msg Message.
+ * @param[in]   flags Flags du message.
+ * @param[in]   sock Socket.
+ * @param[in]   timeout Temps maximal d'attente.
+ *
+ * @return `-1` en cas d'erreur, `0` sinon.
+ */
+int write_msg(message msg, int flags, int sock, int timeout);
+/**
+ * @brief Lit la socket `sock` et met le contenu dans `msg` selon les `flags`.
+ *
+ * @param[in]       sock Socket.
+ * @param[in,out]   msg Message.
+ * @param[in]       flags Flags du message.
+ * @param[in]       timeout Temps maximal d'attente.
+ *
+ * @return `-1` en cas d'erreur, `0` sinon.
+ */
+int read_msg(int sock, message *msg, int flags, int timeout);
 
 #endif

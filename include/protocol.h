@@ -109,5 +109,11 @@ int concat_msg_to_buf(dyn_array *arr, message *msg, unsigned int flags);
  * @param[in]       flags Champs à mettre dans le message.
  */
 void buf_to_msg(const char *buf, message *msg, unsigned int flags);
+/**
+ * @brief Renvoie la taille des données d'un message spécifiées par les `flags`.
+ *
+ * @param[in]   flags Flags.
+ */
+size_t msg_size(int flags);
 
 #endif
