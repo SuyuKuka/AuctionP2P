@@ -2,9 +2,8 @@
 #define PROTOCOL_H
 
 #include <netinet/in.h>
-#include <stdint.h>
 
-#include "darray.h"
+#include "collections.h"
 
 #define KEY_SIZE 113
 
@@ -21,7 +20,8 @@ enum Flags {
     CLE = 1 << 8,
     NUMV = 1 << 9,
     PRIX = 1 << 10,
-    NB = 1 << 11
+    NB = 1 << 11,
+    ALL = CODE | ID | LMESS | LSIG | MESS | SIG | IP | PORT | CLE | NUMV | PRIX | NB
 };
 
 enum Codes {

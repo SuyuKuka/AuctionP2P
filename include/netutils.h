@@ -3,8 +3,6 @@
 
 #include <netdb.h>
 
-#define MILLI(seconds) seconds * 1000
-
 /**
  * @brief Initialise l'adresse `addr` de type multicast.
  *

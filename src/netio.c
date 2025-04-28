@@ -2,7 +2,6 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <netdb.h>
 #include <poll.h>
 #include <stdio.h>
 
@@ -106,6 +105,17 @@ int send_msg_to(message msg, int flags, int sock, struct sockaddr *addr, socklen
 error:
     free_dyn_array(msg_buf);
     return -1;
+}
+
+int recv_msg_from(message *msg, int flags, int sock, struct sockaddr *addr, socklen_t *len) {
+    size_t m_size = msg_size(flags);
+    char buf[m_size];
+    if (recvfrom(sock, buf, sizeof(buf), 0, addr, len) < 0) {
+        perror("[ERROR] recvfrom");
+        return -1;
+    }
+    buf_to_msg(buf, msg, flags);
+    return 0;
 }
 
 int write_msg(message msg, int flags, int sock, int timeout) {

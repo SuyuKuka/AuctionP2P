@@ -1,9 +1,9 @@
 #ifndef NETIO_H
 #define NETIO_H
 
-#include <stdlib.h>
-
 #include "protocol.h"
+
+#define MILLI(seconds) seconds * 1000
 
 /**
  * @brief Envoie `n` octets de `buf` vers `sock` avec une attente maximale `timeout`.
@@ -50,6 +50,19 @@ int set_nonblock(int sock);
  * @return `-1` en cas d'erreur, `0` sinon.
  */
 int send_msg_to(message msg, int flags, int sock, struct sockaddr *addr, socklen_t len);
+/**
+ * @brief Lit la socket `sock` et met le contenu du message dans `msg`, l'adresse dans `addr` et la
+ * taille dans `len`.
+ *
+ * @param[in]   msg Message.
+ * @param[in]   flags Flags du message.
+ * @param[in]   sock Socket.
+ * @param[in]   addr Adresse.
+ * @param[in]   len Taille de l'adresse.
+ *
+ * @return `-1` en cas d'erreur, `0` sinon.
+ */
+int recv_msg_from(message *msg, int flags, int sock, struct sockaddr *addr, socklen_t *len);
 /**
  * @brief Envoie le message à la socket `sock`.
  *
