@@ -526,7 +526,7 @@ int send_peer_data_to_all_peers(peer_data peer, linked_list *peers) {
         struct sockaddr_in6 addr;
         memset(&addr, 0, sizeof(addr));
         addr.sin6_family = AF_INET6;
-        memcpy(&addr.sin6_addr.s6_addr, other_peer->ip, sizeof(addr.sin6_addr.s6_addr));
+        memcpy(&addr.sin6_addr, other_peer->ip, sizeof(addr.sin6_addr));
         addr.sin6_port = other_peer->port;
 
         // Socket TCP.
