@@ -118,6 +118,7 @@ void free_list(linked_list *list) {
 
     while (curr != NULL) {
         next = curr->next;
+        free(curr->data);
         free(curr);
         curr = next;
     }

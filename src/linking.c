@@ -529,13 +529,6 @@ int send_peer_data_to_all_peers(peer_data peer, linked_list *peers) {
 
     for (node *n = peers->head; n != NULL; n = n->next) {
         const peer_data *other_peer = n->data;
-
-        // ===== DEBUG =====
-        char ip_str[INET6_ADDRSTRLEN];
-        if (inet_ntop(AF_INET6, other_peer->ip, ip_str, sizeof(ip_str)))
-            printf("[DEBUG] ================= Peer %d, %s %d.\n", ntohs(other_peer->id), ip_str,
-                   ntohs(other_peer->port));
-        // ===== DEBUG =====
         if (other_peer->id == peer.id) continue;
 
         struct sockaddr_in6 addr;
@@ -564,7 +557,12 @@ int send_peer_data_to_all_peers(peer_data peer, linked_list *peers) {
         // Envoi de la réponse.
         if (write_nb(sock, msg_buf.array, msg_buf.len, MILLI(5)) < 0) goto loop_err;
 
-        printf("[DEBUG] Shared peer's info to another peer.\n");
+        // ===== DEBUG =====
+        char ip_str[INET6_ADDRSTRLEN];
+        if (inet_ntop(AF_INET6, other_peer->ip, ip_str, sizeof(ip_str)))
+            printf("[DEBUG] Shared peer %d's info (%s %d) to another peer.\n",
+                   ntohs(other_peer->id), ip_str, ntohs(other_peer->port));
+        // ===== DEBUG =====
 
     loop_err:
         close(sock);
