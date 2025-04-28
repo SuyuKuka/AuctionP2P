@@ -36,7 +36,7 @@ int await_join_req_response(int sock, linked_list *peers);
  *
  * @return `-1` en cas d'erreur, `0` sinon.
  */
-int handle_pers_data_sharing(pers_data *p_data, linked_list peers);
+int handle_pers_data_sharing(pers_data *p_data, linked_list *peers);
 /**
  * @brief Envoi du message contenant les données personnelles au pair `peer`. (`code = 5`).
  *
@@ -142,7 +142,7 @@ int handle_linking(pers_data *p_data, linked_list *peers, struct sockaddr_in6 li
     printf("[DEBUG] === Starting sharing process ===\n");
 
     // b) 4. Partage de l'adresse personnelle.
-    if (handle_pers_data_sharing(p_data, *peers) < 0 ||
+    if (handle_pers_data_sharing(p_data, peers) < 0 ||
         handle_peers_data_sharing(auction_addr, peers, p_data->tcp_serv_sock) < 0)
         return -1;
 
@@ -191,14 +191,18 @@ int await_join_req_response(int sock, linked_list *peers) {
             if (msg.code == JOIN_REQ_RES) {
                 got_res = 1;
 
-                peer_data peer = {.id = msg.id, .port = msg.port};
-                memcpy(&peer.ip, &msg.ip, sizeof(peer.ip));
-                memset(peer.cle, 0, KEY_SIZE);
+                peer_data *peer = malloc(sizeof(peer_data));
+                if (!peer) goto error;
+
+                peer->id = msg.id;
+                peer->port = msg.port;
+                memcpy(&peer->ip, &msg.ip, sizeof(peer->ip));
+                memset(peer->cle, 0, KEY_SIZE);
 
                 // Ajout des données du pair dans `peers`.
                 node *peer_node = init_node();
                 if (!peer_node) return -1;
-                peer_node->data = &peer;
+                peer_node->data = peer;
                 append_to_list(peer_node, peers);
 
                 // ===== DEBUG =====
@@ -224,10 +228,10 @@ int await_join_req_response(int sock, linked_list *peers) {
 }
 
 /**************************************************************************************************
- *                                Partage des infos personnelles.                                 *
+ *                                Partage des infos personnelles. *
  **************************************************************************************************/
 
-int handle_pers_data_sharing(pers_data *p_data, linked_list peers) {
+int handle_pers_data_sharing(pers_data *p_data, linked_list *peers) {
     int ret = -1;
     int sock = socket(PF_INET6, SOCK_STREAM, 0);  // Socket TCP.
     if (sock < 0) {
@@ -235,7 +239,7 @@ int handle_pers_data_sharing(pers_data *p_data, linked_list peers) {
         return -1;
     }
 
-    for (node *n = peers.head; n != NULL; n = n->next) {
+    for (node *n = peers->head; n != NULL; n = n->next) {
         peer_data *peer = n->data;
         printf("[DEBUG] Trying to share address and key to peer %d.\n", ntohs(peer->id));
         ret = send_pers_data_to_peer(*p_data, *peer, sock);
@@ -357,13 +361,17 @@ int handle_peers_data_sharing(struct sockaddr_in6 *auction_addr, linked_list *pe
         // ===== DEBUG =====
 
         // Ajout dans le tableau.
-        peer_data peer = {.id = msg.id, .port = msg.port};
-        memcpy(peer.ip, msg.ip, sizeof(peer.ip));
-        memcpy(peer.cle, msg.cle, sizeof(peer.cle));
+        peer_data *peer = malloc(sizeof(peer_data));
+        if (!peer) goto error;
+
+        peer->id = msg.id;
+        peer->port = msg.port;
+        memcpy(peer->ip, msg.ip, sizeof(peer->ip));
+        memcpy(peer->cle, msg.cle, sizeof(peer->cle));
 
         node *peer_node = init_node();
         if (!peer_node) goto error;
-        peer_node->data = &peer;
+        peer_node->data = peer;
         append_to_list(peer_node, peers);
     }
 
