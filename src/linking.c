@@ -291,9 +291,9 @@ int await_pers_data_sharing_res(pers_data *p_data, int sock) {
     if (read_nb(sock, &buf, sizeof(buf), MILLI(5)) < 0) return -1;
 
     if (buf[0] == JOIN_INVALID_ID) {
-        printf("[DEBUG] ID %d already used.\n", p_data->id);
+        printf("[DEBUG] ID %d already used.\n", ntohs(p_data->id));
         memcpy(&p_data->id, buf + 1, sizeof(p_data->id));
-        printf("[DEBUG] New ID set: %d.\n", p_data->id);
+        printf("[DEBUG] New ID set: %d.\n", ntohs(p_data->id));
     } else if (buf[0] != JOIN_VALID_ID) {
         printf("[DEBUG] Invalid ID response code received: %d.\n", buf[0]);
         return -1;
@@ -628,7 +628,12 @@ int send_all_peers_data_to_peer(const uint8_t *auction_ip, uint16_t auction_port
             write_nb(sock, msg_buf.array, msg_buf.len, MILLI(5)) < 0)
             goto error;
 
-        printf("[DEBUG] Shared one peer's info to peer.\n");
+        // ===== DEBUG =====
+        char ip_str[INET6_ADDRSTRLEN];
+        if (inet_ntop(AF_INET6, msg.ip, ip_str, sizeof(ip_str)))
+            printf("[DEBUG] Shared peer %d's (%s %d) info to peer.\n", ntohs(msg.id), ip_str,
+                   ntohs(msg.port));
+        // ===== DEBUG =====
     }
 
     close(sock);
