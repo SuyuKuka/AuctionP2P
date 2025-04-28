@@ -1,17 +1,13 @@
 #include <arpa/inet.h>
-#include <net/if.h>
-#include <netinet/in.h>
 #include <pthread.h>
+#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <time.h>
 #include <unistd.h>
 
+#include "handlers.h"
 #include "linking.h"
 #include "netutils.h"
-#include "protocol.h"
 
 #define LINKING_IP "ff12::feed:bee"
 #define AUCTIONS_IP "ff12::add:beef"
@@ -30,10 +26,12 @@ int main(int argc, char const *argv[]) {
     struct sockaddr_in6 linking_addr;   // Adresse de liaison.
     struct sockaddr_in6 auction_addr;   // Adresse d'enchères.
     struct sockaddr_in6 personal_addr;  // Adresse personnelle.
-    dyn_array peers_data;               // Adresses et clés des pairs.
-    pers_data p_data;
+    linked_list peers;                  // Adresses et clés des pairs.
+    pers_data p_data;                   // Données personnelles.
+    int running = 1;                    // Pour savoir si le pair a quitté ou non le système.
 
-    if (init_dyn_array(&peers_data, sizeof(peer_data) * 5) < 0) goto error;
+    memset(&peers, 0, sizeof(peers));
+    memset(&p_data, 0, sizeof(p_data));
 
     // Initialisation udp_sock.
     udp_sock = make_udp_socket();
@@ -66,7 +64,7 @@ int main(int argc, char const *argv[]) {
     // ===== DEBUG =====
 
     // Demande d'adhésion au système d'enchères
-    res = handle_linking(&p_data, &peers_data, linking_addr, &auction_addr);
+    res = handle_linking(&p_data, &peers, linking_addr, &auction_addr);
     if (res == 0) {
         // Initialisation de l'adresse de d'enchères.
         printf("Nobody connected, awaiting new peers...\n");
@@ -75,17 +73,18 @@ int main(int argc, char const *argv[]) {
         goto error;
     }
 
-    join_req_params join_req_p = {.p_data = p_data, .linking_addr = linking_addr};
+    multicast_handler_args multicast_args = {.linking_addr = linking_addr,
+                                             .auction_addr = auction_addr,
+                                             .p_data = p_data,
+                                             .running = &running};
+    tcp_handler_args tcp_args = {
+        .auction_addr = auction_addr, .p_data = p_data, .peers = &peers, .running = &running};
     pthread_t join_req_thread;
-    if (pthread_create(&join_req_thread, NULL, handle_join_requests, &join_req_p) < 0) {
+    if (pthread_create(&join_req_thread, NULL, handle_multicast, &multicast_args) < 0) {
         goto error;
     }
-
-    data_sharing_params sharing_p = {
-        .p_data = p_data, .peers_data = &peers_data, .auction_port = auction_addr.sin6_port};
-    memcpy(sharing_p.auction_ip, &auction_addr.sin6_addr.s6_addr, sizeof(sharing_p.auction_ip));
     pthread_t d_sharing_thread;
-    if (pthread_create(&d_sharing_thread, NULL, handle_data_sharing, &sharing_p) < 0) {
+    if (pthread_create(&d_sharing_thread, NULL, handle_tcp, &tcp_args) < 0) {
         goto error;
     }
 
@@ -95,12 +94,13 @@ int main(int argc, char const *argv[]) {
     close(udp_sock);
     close(tcp_serv_sock);
     close(linking_subs_sock);
+    free_list(&peers);
     return EXIT_SUCCESS;
 
 error:
     if (udp_sock) close(udp_sock);
     if (tcp_serv_sock) close(tcp_serv_sock);
     if (linking_subs_sock) close(linking_subs_sock);
-    free_dyn_array(peers_data);
+    free_list(&peers);
     return EXIT_FAILURE;
 }
