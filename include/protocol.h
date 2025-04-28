@@ -2,9 +2,8 @@
 #define PROTOCOL_H
 
 #include <netinet/in.h>
-#include <stdint.h>
 
-#include "darray.h"
+#include "collections.h"
 
 #define KEY_SIZE 113
 
@@ -21,7 +20,8 @@ enum Flags {
     CLE = 1 << 8,
     NUMV = 1 << 9,
     PRIX = 1 << 10,
-    NB = 1 << 11
+    NB = 1 << 11,
+    ALL = CODE | ID | LMESS | LSIG | MESS | SIG | IP | PORT | CLE | NUMV | PRIX | NB
 };
 
 enum Codes {
@@ -109,5 +109,11 @@ int concat_msg_to_buf(dyn_array *arr, message *msg, unsigned int flags);
  * @param[in]       flags Champs à mettre dans le message.
  */
 void buf_to_msg(const char *buf, message *msg, unsigned int flags);
+/**
+ * @brief Renvoie la taille des données d'un message spécifiées par les `flags`.
+ *
+ * @param[in]   flags Flags.
+ */
+size_t msg_size(int flags);
 
 #endif
