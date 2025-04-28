@@ -523,10 +523,17 @@ int send_peer_data_to_all_peers(peer_data peer, linked_list *peers) {
         const peer_data *other_peer = n->data;
         if (other_peer->id == peer.id) continue;
 
+        // ===== DEBUG =====
+        char ip_str[INET6_ADDRSTRLEN];
+        if (inet_ntop(AF_INET6, other_peer->ip, ip_str, sizeof(ip_str)))
+            printf("[DEBUG] ================= Peer %d, %s %d.\n", ntohs(other_peer->id), ip_str,
+                   ntohs(other_peer->port));
+        // ===== DEBUG =====
+
         struct sockaddr_in6 addr;
         memset(&addr, 0, sizeof(addr));
         addr.sin6_family = AF_INET6;
-        memcpy(&addr.sin6_addr, other_peer->ip, sizeof(addr.sin6_addr));
+        memcpy(&addr.sin6_addr.s6_addr, other_peer->ip, sizeof(addr.sin6_addr.s6_addr));
         addr.sin6_port = other_peer->port;
 
         // Socket TCP.
