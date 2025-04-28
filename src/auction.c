@@ -12,11 +12,21 @@
 #include "linking.h"
 #include "netutils.h"
 #include "protocol.h"
+#include "auction_handler.h"
 
 #define LINKING_IP "ff12::feed:bee"
 #define AUCTIONS_IP "ff12::add:beef"
 #define LINKING_PORT 57500
 #define AUCTIONS_PORT 59500
+
+void print_help() {
+    printf("Available commands:\n");
+    printf("  init <initial_price> - Initialize a new auction\n");
+    printf("  bid <auction_num> <price> - Place a bid on an auction\n");
+    printf("  list - List active auctions\n");
+    printf("  help - Display this help message\n");
+    printf("  quit - Exit the program\n");
+}
 
 int main(int argc, char const *argv[]) {
     // TODO: Demander l'adresse et le port ?
@@ -32,8 +42,12 @@ int main(int argc, char const *argv[]) {
     struct sockaddr_in6 personal_addr;  // Adresse personnelle.
     dyn_array peers_data;               // Adresses et clés des pairs.
     pers_data p_data;
+    //
+    uint32_t auction_counter = 0;       // Compteur des ventes initiées
+    dyn_array active_auctions;          // Liste des ventes actives
 
     if (init_dyn_array(&peers_data, sizeof(peer_data) * 5) < 0) goto error;
+    if (init_dyn_array(&active_auctions, sizeof(auction_info) * 5) < 0) goto error; //
 
     // Initialisation udp_sock.
     udp_sock = make_udp_socket();
@@ -89,8 +103,90 @@ int main(int argc, char const *argv[]) {
         goto error;
     }
 
-    while (1);
+    pthread_t auction_thread;
+    auction_handler_params *auction_params = malloc(sizeof(auction_handler_params));
+    auction_params->p_data = &p_data;
+    auction_params->auction_addr = auction_addr;
+    auction_params->active_auctions = &active_auctions;
+    auction_params->auction_counter = &auction_counter;
+
+    if (pthread_create(&auction_thread, NULL, handle_auctions, auction_params) < 0) {
+        free(auction_params);
+        goto error;
+    }
+
+    printf("\nAuction system initialized. Type 'help' for available commands.\n");
+
+
+    // Interface utilisateur pour gérer les enchères
+    char input[256];
+    char cmd[64];
+
+    while (1) {
+        printf("> ");
+        fflush(stdout);
+        
+        // Obtenir la cmd de l'user
+        if (fgets(input, sizeof(input), stdin) == NULL) {
+            break;
+        }
+        
+        // Extraction de la cmd
+        if (sscanf(input, "%s", cmd) != 1) {
+            continue;
+        }
+        
+        if (strcmp(cmd, "init") == 0) {
+            // Init une nouvelle vente
+            uint32_t initial_price;
+            if (sscanf(input, "%*s %u", &initial_price) == 1) {
+                if (init_auction(&p_data, auction_addr, &auction_counter, initial_price, &active_auctions) < 0) {
+                    printf("Failed to initialize auction\n");
+                }
+            } else {
+                printf("Usage: init <initial_price>\n");
+            }
+        }
+         else if (strcmp(cmd, "bid") == 0) {
+            // Placer une enchère
+            uint32_t auction_num, bid_price;
+            if (sscanf(input, "%*s %u %u", &auction_num, &bid_price) == 2) {
+                if (place_bid(&p_data, auction_addr, auction_num, bid_price) < 0) {
+                    printf("Failed to place bid\n");
+                }
+            } else {
+                printf("Usage: bid <auction_number> <bid_price>\n");
+            }
+        }
+        else if (strcmp(cmd, "list") == 0) {
+            // Lister les ventes actives
+            list_auctions(&active_auctions);
+        }
+        else if (strcmp(cmd, "help") == 0) {
+            // Afficher l'aide
+            print_help();
+        }
+        else if (strcmp(cmd, "quit") == 0) {
+            // Quit
+            break;
+        }
+        else {
+            printf("Unknown command. Type 'help' for available commands.\n");
+        }
+    }
+    // while (1);
     // TODO: Etape 3
+    /* Initialiser le thread des enchères ici ? */
+
+    // Nettoyage des ressources
+    free(auction_params);
+    pthread_cancel(auction_thread);
+    pthread_join(auction_thread, NULL);
+    pthread_cancel(join_req_thread);
+    pthread_join(join_req_thread, NULL);
+    pthread_cancel(d_sharing_thread);
+    pthread_join(d_sharing_thread, NULL);
+    //
 
     close(udp_sock);
     close(tcp_serv_sock);
@@ -102,5 +198,6 @@ error:
     if (tcp_serv_sock) close(tcp_serv_sock);
     if (linking_subs_sock) close(linking_subs_sock);
     free_dyn_array(peers_data);
+    free_dyn_array(active_auctions); //
     return EXIT_FAILURE;
 }
