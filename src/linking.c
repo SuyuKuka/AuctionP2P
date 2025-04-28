@@ -131,11 +131,15 @@ int handle_linking(pers_data *p_data, linked_list *peers, struct sockaddr_in6 li
         res = await_join_req_response(p_data->tcp_serv_sock, peers);
     } while (attempts < 3 && res == 0);
 
+    printf("[DEBUG] === Initial response received ===\n");
+
     // Erreur.
     if (res < 0) return -1;
 
     // b) 2. Pas de réponse reçue.
     if (attempts == 3 && !res) return 0;
+
+    printf("[DEBUG] === Starting sharing process ===\n");
 
     // b) 4. Partage de l'adresse personnelle.
     if (handle_pers_data_sharing(p_data, *peers) < 0 ||
@@ -434,8 +438,7 @@ int handle_info_sharing(int peer_sock, peer_data peer, pers_data p_data, linked_
     peer_data *d = get_last_node(peers)->data;
     char ip_str[INET6_ADDRSTRLEN];
     if (inet_ntop(AF_INET6, d->ip, ip_str, sizeof(ip_str)))
-        printf("[DEBUG] A peer shared data of peer %d of ip %s %d.\n", ntohs(d->id), ip_str,
-               ntohs(d->port));
+        printf("[DEBUG] Peer %d shared his ip %s %d.\n", ntohs(d->id), ip_str, ntohs(d->port));
     // ===== DEBUG =====
 
     if (send_peer_data_to_all_peers(peer, peers) < 0) {

@@ -73,6 +73,8 @@ int main(int argc, char const *argv[]) {
         goto error;
     }
 
+    printf("Successfully joined the auction system!\n");
+
     multicast_handler_args multicast_args = {.linking_addr = linking_addr,
                                              .auction_addr = auction_addr,
                                              .p_data = p_data,

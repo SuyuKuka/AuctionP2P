@@ -10,6 +10,8 @@
 #include "netutils.h"
 
 void *handle_multicast(void *arg) {
+    printf("[DEBUG] === Starting multicast thread ===\n");
+
     multicast_handler_args *args = (multicast_handler_args *)arg;
 
     struct sockaddr_in6 linking_addr = args->linking_addr;
@@ -60,6 +62,8 @@ error:
 }
 
 void *handle_tcp(void *arg) {
+    printf("[DEBUG] === Starting unicast TCP thread ===\n");
+
     tcp_handler_args *args = (tcp_handler_args *)arg;
 
     struct sockaddr_in6 auction_addr = args->auction_addr;
