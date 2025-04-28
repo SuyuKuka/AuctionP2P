@@ -292,7 +292,7 @@ int await_pers_data_sharing_res(pers_data *p_data, int sock) {
 
     if (buf[0] == JOIN_INVALID_ID) {
         printf("[DEBUG] ID %d already used.\n", ntohs(p_data->id));
-        memcpy(&p_data->id, buf + 1, sizeof(p_data->id));
+        memcpy(&(p_data->id), buf + 1, sizeof(p_data->id));
         printf("[DEBUG] New ID set: %d.\n", ntohs(p_data->id));
     } else if (buf[0] != JOIN_VALID_ID) {
         printf("[DEBUG] Invalid ID response code received: %d.\n", buf[0]);
@@ -521,7 +521,6 @@ int send_peer_data_to_all_peers(peer_data peer, linked_list *peers) {
 
     for (node *n = peers->head; n != NULL; n = n->next) {
         const peer_data *other_peer = n->data;
-        if (other_peer->id == peer.id) continue;
 
         // ===== DEBUG =====
         char ip_str[INET6_ADDRSTRLEN];
@@ -529,6 +528,7 @@ int send_peer_data_to_all_peers(peer_data peer, linked_list *peers) {
             printf("[DEBUG] ================= Peer %d, %s %d.\n", ntohs(other_peer->id), ip_str,
                    ntohs(other_peer->port));
         // ===== DEBUG =====
+        if (other_peer->id == peer.id) continue;
 
         struct sockaddr_in6 addr;
         memset(&addr, 0, sizeof(addr));
