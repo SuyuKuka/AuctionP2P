@@ -150,7 +150,7 @@ int main(int argc, char const *argv[]) {
             uint32_t auction_num, bid_price;
             if (sscanf(input, "%*s %u %u", &auction_num, &bid_price) == 2) {
                 if (place_bid(&p_data, auction_addr, auction_num, bid_price) < 0) {
-                    printf("Failed to place bid\n");
+                    printf(" Failed to place bid\n");
                 }
             } else {
                 printf("Usage: bid <auction_number> <bid_price>\n");

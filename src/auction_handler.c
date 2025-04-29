@@ -106,10 +106,10 @@ int place_bid(pers_data *p_data, struct sockaddr_in6 auction_addr,
 
 
 void list_auctions(dyn_array *active_auctions) {
-    printf("Active auctions:\n");
+    printf(" Active auctions:\n");
     
     if (active_auctions->len == 0) {
-        printf("No active auctions\n");
+        printf(" No active auctions\n");
         return;
     }
     
@@ -118,7 +118,7 @@ void list_auctions(dyn_array *active_auctions) {
     
     for (int i = 0; i < count; i++) {
         if (auctions[i].is_active) {
-            printf("Auction #%u: current price %u (last bidder: %u)\n", 
+            printf("   Auction #%u: current price %u (last bidder: %u)\n", 
                    auctions[i].numv, auctions[i].current_price, auctions[i].current_bidder);
         }
     }
@@ -167,7 +167,7 @@ void *handle_auctions(void *params) {
                 uint32_t price = ntohl(msg.prix);
                 uint16_t peer_id = ntohs(msg.id);
                 
-                printf("New auction #%u initiated by peer %u with initial price %u\n", 
+                printf(" New auction #%u initiated by peer %u with initial price %u\n", 
                        auction_num, peer_id, price);
                 
                 // Check si cette vente existe déjà
@@ -200,7 +200,7 @@ void *handle_auctions(void *params) {
                 uint32_t bid_price = ntohl(msg.prix);
                 uint16_t bidder_id = ntohs(msg.id);
                 
-                printf("Bid of %u on auction #%u by peer %u\n", bid_price, auction_num, bidder_id);
+                printf(" Bid of %u on auction #%u by peer %u\n", bid_price, auction_num, bidder_id);
                 
                 // Si ce pair est superviseur de la vente, rediff l'enchère
                 auction_info *auctions = (auction_info *)active_auctions->array;
@@ -229,9 +229,9 @@ void *handle_auctions(void *params) {
                                 }
                                 free_dyn_array(buf);
                             }
-                            printf("Relayed valid bid on auction #%u\n", auction_num);
+                            printf(" Relayed valid bid on auction #%u\n", auction_num);
                         } else {
-                            printf("Rejected invalid bid on auction #%u (price too low)\n", auction_num);
+                            printf(" Rejected invalid bid on auction #%u (price too low)\n", auction_num);
                         }
                         break;
                     }
@@ -240,7 +240,24 @@ void *handle_auctions(void *params) {
             }
 
             case 10 : {     // Rediff de l'enchère par le superviseur
-                // buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
+                buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
+                uint32_t auction_num = ntohl(msg.numv);
+                uint32_t bid_price = ntohl(msg.prix);
+                uint16_t bidder_id = ntohs(msg.id);
+                
+                printf(" Supervisor validated bid of %u on auction #%u by peer %u\n", bid_price, auction_num, bidder_id);
+                
+                // Maj prix actuel dans la liste de ventes
+                auction_info *auctions = (auction_info *)active_auctions->array;
+                int count = active_auctions->len / sizeof(auction_info);
+                
+                for (int i = 0; i < count; i++) {
+                    if (auctions[i].numv == auction_num && auctions[i].is_active) {
+                        auctions[i].current_price = bid_price;
+                        auctions[i].current_bidder = bidder_id;
+                        break;
+                    }
+                }
                 break;
             }
 
