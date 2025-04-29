@@ -127,7 +127,7 @@ void list_auctions(dyn_array *active_auctions) {
 
 void *handle_auctions(void *params) {
     auction_handler_params *p = (auction_handler_params *)params;
-    // pers_data *p_data = p->p_data; // check utilisation
+    pers_data *p_data = p->p_data; // check utilisation dans le bid ?
     struct sockaddr_in6 auction_addr = p->auction_addr;
     dyn_array *active_auctions = p->active_auctions;
     
@@ -146,8 +146,7 @@ void *handle_auctions(void *params) {
 
     while (1) {
         // Recevoir les messages
-        int recv_len = recvfrom(listen_sock, buffer, sizeof(buffer), 0,
-                               (struct sockaddr *)&sender_addr, &sender_len);
+        int recv_len = recvfrom(listen_sock, buffer, sizeof(buffer), 0, (struct sockaddr *)&sender_addr, &sender_len);
         
         if (recv_len <= 0) {
             continue;
@@ -196,8 +195,47 @@ void *handle_auctions(void *params) {
             }
 
             case AUC_BID : {
-                // buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
-                // Finaliser code pour bid
+                buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
+                uint32_t auction_num = ntohl(msg.numv);
+                uint32_t bid_price = ntohl(msg.prix);
+                uint16_t bidder_id = ntohs(msg.id);
+                
+                printf("Bid of %u on auction #%u by peer %u\n", bid_price, auction_num, bidder_id);
+                
+                // Si ce pair est superviseur de la vente, rediff l'enchère
+                auction_info *auctions = (auction_info *)active_auctions->array;
+                int count = active_auctions->len / sizeof(auction_info);
+
+                for (int i = 0; i < count; i++) {
+                    if (auctions[i].numv == auction_num && 
+                        auctions[i].supervisor_id == ntohs(p_data->id) && 
+                        auctions[i].is_active) {
+                        
+                        // Check si l'enchère est valide (prix > prix actuel)
+                        if (bid_price > auctions[i].current_price) {
+                            // Maj prix actuel et l'enchérisseur
+                            auctions[i].current_price = bid_price;
+                            auctions[i].current_bidder = bidder_id;
+                            
+                            // Rediff l'enchère avec le code 10
+                            message relay_msg = msg;
+                            relay_msg.code = 10;  // Code pour rediff d'enchère
+                            
+                            dyn_array buf;
+                            if (init_dyn_array(&buf, 64) >= 0) {
+                                if (concat_msg_to_buf(&buf, &relay_msg, CODE | ID | NUMV | PRIX) >= 0) {
+                                    sendto(p_data->udp_sock, buf.array, buf.len, 0, 
+                                           (struct sockaddr *)&auction_addr, sizeof(auction_addr));
+                                }
+                                free_dyn_array(buf);
+                            }
+                            printf("Relayed valid bid on auction #%u\n", auction_num);
+                        } else {
+                            printf("Rejected invalid bid on auction #%u (price too low)\n", auction_num);
+                        }
+                        break;
+                    }
+                }
                 break;
             }
 
