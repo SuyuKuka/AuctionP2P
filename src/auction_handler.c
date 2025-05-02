@@ -124,7 +124,7 @@ void list_auctions(dyn_array *active_auctions) {
     }
 }
 
-
+// PB de multidiffusion ? Maj des valeurs que pour le superviseur ? Autres users recoivent toujours message pour un bid (mais ne savent pas si il est refusé ou non)
 void *handle_auctions(void *params) {
     auction_handler_params *p = (auction_handler_params *)params;
     pers_data *p_data = p->p_data; // check utilisation dans le bid ?
@@ -251,12 +251,36 @@ void *handle_auctions(void *params) {
                 auction_info *auctions = (auction_info *)active_auctions->array;
                 int count = active_auctions->len / sizeof(auction_info);
                 
+                int auction_exists = 0;
                 for (int i = 0; i < count; i++) {
                     if (auctions[i].numv == auction_num && auctions[i].is_active) {
                         auctions[i].current_price = bid_price;
                         auctions[i].current_bidder = bidder_id;
+                        auction_exists = 1;
                         break;
                     }
+                }
+                
+                // Si l'enchère n'existe pas encore dans la liste, l'addS
+                if (!auction_exists) {
+                    // Détermination du superviseur -> ID dans message 10
+                    uint16_t supervisor_id = 0;
+                    struct in6_addr *sender_ip = &(sender_addr.sin6_addr);
+                    char ip_str[INET6_ADDRSTRLEN];
+                    inet_ntop(AF_INET6, sender_ip, ip_str, INET6_ADDRSTRLEN);
+                    
+                    // Détermination du superviseur à partir de l'IP d'envoi, ou utilisation de l'ID du message
+                    supervisor_id = ntohs(msg.id); // ID du message
+                    
+                    auction_info new_auction;
+                    new_auction.numv = auction_num;
+                    new_auction.supervisor_id = supervisor_id;
+                    new_auction.current_price = bid_price;
+                    new_auction.current_bidder = bidder_id;
+                    new_auction.is_active = 1;
+                    
+                    concat_to_array(active_auctions, &new_auction, sizeof(auction_info));
+                    printf(" Added new auction #%u to local list with current price %u\n", auction_num, bid_price);
                 }
                 break;
             }
