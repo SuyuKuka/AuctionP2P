@@ -13,7 +13,21 @@
 #include "darray.h"
 
 
-// Initialiser le auction handler
+/**
+ * @brief Initialise une nouvelle enchère
+ * 
+ * Création d'une nouvelle enchère avec un numéro unique et l'enregistre
+ * dans la liste active_auctions. Elle envoie également un message d'initialisation
+ * d'enchère sur l'adresse multicast spécifiée.
+ * 
+ * @param p_data Pointeur vers les données personnelles du pair
+ * @param auction_addr Adresse multicast pour les messages d'enchères
+ * @param counter Pointeur vers le compteur utilisé pour les numéros d'enchères
+ * @param initial_price Prix initial de l'enchère
+ * @param active_auctions Tableau dynamique contenant la liste des enchères actives
+ * 
+ * @return 0 en cas de succès, -1 en cas d'erreur
+ */
 int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *counter, uint32_t initial_price, dyn_array *active_auctions) {
     (*counter)++;
     
@@ -67,6 +81,20 @@ int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *
 }
 
 
+/**
+ * @brief Place une enchère sur une vente existante
+ * 
+ * Envoie un message d'enchère (code 9) sur l'adresse multicast
+ * pour participer à une enchère. Le superviseur de l'enchère valide
+ * ou non cette offre.
+ * 
+ * @param p_data Pointeur vers les données personnelles du pair
+ * @param auction_addr Adresse multicast pour les messages d'enchères
+ * @param auction_num Numéro de l'enchère sur laquelle placer l'offre
+ * @param bid_price Prix proposé par le pair
+ * 
+ * @return 0 en cas de succès, -1 en cas d'erreur.
+ */
 int place_bid(pers_data *p_data, struct sockaddr_in6 auction_addr,
               uint32_t auction_num, uint32_t bid_price) {
     
@@ -100,11 +128,19 @@ int place_bid(pers_data *p_data, struct sockaddr_in6 auction_addr,
     }
     
     free_dyn_array(buf);
-    printf("Bid of %u placed on auction #%u\n", bid_price, auction_num);
+    // printf("Bid of %u placed on auction #%u\n", bid_price, auction_num); // déjà géré par le handler
     return 0;
 }
 
 
+/**
+ * @brief Affiche la liste des enchères actives
+ * 
+ * Parcourt le tableau des enchères actives et affiche pour chaque enchère
+ * son numéro, le prix actuel et l'ID du dernier enchérisseur.
+ * 
+ * @param active_auctions Tableau dynamique contenant la liste des enchères actives
+ */
 void list_auctions(dyn_array *active_auctions) {
     printf(" Active auctions:\n");
     
@@ -124,10 +160,21 @@ void list_auctions(dyn_array *active_auctions) {
     }
 }
 
-// PB de multidiffusion ? Maj des valeurs que pour le superviseur ? Autres users recoivent toujours message pour un bid (mais ne savent pas si il est refusé ou non)
+
+/**
+ * @brief Thread gérant les messages d'enchères
+ * 
+ * S'exécute dans un thread séparé, responsable de:
+ * - L'écoute des messages d'enchères sur l'addr multicast
+ * - Traitement des différents types de messages (AUC_INIT, AUC_BID, 10)
+ * - Mettre à jour la liste active_auctions
+ * - Valider et rediffuser les enchères pour lesquelles ce pair est superviseur
+ * 
+ * @param params Pointeur vers auction_handler_params
+ */
 void *handle_auctions(void *params) {
     auction_handler_params *p = (auction_handler_params *)params;
-    pers_data *p_data = p->p_data; // check utilisation dans le bid ?
+    pers_data *p_data = p->p_data;
     struct sockaddr_in6 auction_addr = p->auction_addr;
     dyn_array *active_auctions = p->active_auctions;
     
@@ -229,7 +276,7 @@ void *handle_auctions(void *params) {
                                 }
                                 free_dyn_array(buf);
                             }
-                            printf(" Relayed valid bid on auction #%u\n", auction_num);
+                            printf(" Validated new bid on auction #%u\n", auction_num);
                         } else {
                             printf(" Rejected invalid bid on auction #%u (price too low)\n", auction_num);
                         }
@@ -246,6 +293,8 @@ void *handle_auctions(void *params) {
                 uint16_t bidder_id = ntohs(msg.id);
                 
                 printf(" Supervisor validated bid of %u on auction #%u by peer %u\n", bid_price, auction_num, bidder_id);
+
+                // TODO: processus de consensus ici, post code 10
                 
                 // Maj prix actuel dans la liste de ventes
                 auction_info *auctions = (auction_info *)active_auctions->array;
@@ -261,7 +310,7 @@ void *handle_auctions(void *params) {
                     }
                 }
                 
-                // Si l'enchère n'existe pas encore dans la liste, l'addS
+                // Si l'enchère n'existe pas encore dans la liste, l'add
                 if (!auction_exists) {
                     // Détermination du superviseur -> ID dans message 10
                     uint16_t supervisor_id = 0;

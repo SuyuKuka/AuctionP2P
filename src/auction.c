@@ -123,8 +123,8 @@ int main(int argc, char const *argv[]) {
     char cmd[64];
 
     while (1) {
-        printf("> ");
         fflush(stdout);
+        printf("> ");
         
         // Obtenir la cmd de l'user
         if (fgets(input, sizeof(input), stdin) == NULL) {
