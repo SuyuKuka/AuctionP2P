@@ -78,6 +78,7 @@ typedef struct peer_data {
 typedef struct pers_data {
     struct sockaddr_in6 addr;
     int udp_sock;       /* Socket UDP pour les envois. */
+    int udp_serv_sock;  /* Socket UDP pour la réception unicast. */
     int tcp_serv_sock;  /* Socket serveur TCP. */
     uint16_t id;        /* Identifiant. */
     char cle[KEY_SIZE]; /* Clé. */
