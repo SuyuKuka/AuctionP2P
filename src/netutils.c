@@ -23,28 +23,41 @@ int init_multicast_addr(struct sockaddr_in6 *addr, const char *ip, int port) {
     return 0;
 }
 
-int make_multicast_socket(struct sockaddr_in6 multicast_addr) {
-    int receiver_sock = socket(AF_INET6, SOCK_DGRAM, 0);
-    if (receiver_sock < 0) {
+int make_udp_receiver_socket(uint16_t port) {
+    int sock = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (sock < 0) {
         perror("[ERROR] socket");
         goto error;
     }
 
     int reuse = 1;
-    if (setsockopt(receiver_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
         perror("[ERROR] setsockopt SO_REUSEADDR");
         goto error;
     }
 
-    struct sockaddr_in6 addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin6_family = AF_INET6;
-    addr.sin6_addr = in6addr_any;
-    addr.sin6_port = multicast_addr.sin6_port;
+    struct sockaddr_in6 s_addr;
+    memset(&s_addr, 0, sizeof(s_addr));
+    s_addr.sin6_family = AF_INET6;
+    s_addr.sin6_addr = in6addr_any;
+    s_addr.sin6_port = port;
 
-    if (bind(receiver_sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (bind(sock, (struct sockaddr *)&s_addr, sizeof(s_addr)) < 0) {
         perror("[ERROR] bind");
         goto error;
+    }
+
+    return sock;
+
+error:
+    if (sock) close(sock);
+    return -1;
+}
+
+int make_multicast_socket(struct sockaddr_in6 multicast_addr) {
+    int receiver_sock = make_udp_receiver_socket(multicast_addr.sin6_port);
+    if (receiver_sock < 0) {
+        return -1;
     }
 
     struct ipv6_mreq mreq;
@@ -54,14 +67,11 @@ int make_multicast_socket(struct sockaddr_in6 multicast_addr) {
 
     if (setsockopt(receiver_sock, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) < 0) {
         perror("[ERROR] setsockopt IPV6_JOIN_GROUP");
-        goto error;
+        close(receiver_sock);
+        return -1;
     }
 
     return receiver_sock;
-
-error:
-    if (receiver_sock) close(receiver_sock);
-    return -1;
 }
 
 int init_personal_addr(struct sockaddr_in6 *personal_addr, int port) {
