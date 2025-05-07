@@ -21,6 +21,7 @@ int main(int argc, char const *argv[]) {
 
     int res;
     int udp_sock = -1;                  // Socket UDP pour l'envoi de messages.
+    int udp_serv_sock = -1;             // Socket UDP pour la réception de messages en unicast.
     int tcp_serv_sock = -1;             // Socket TCP pour la réception de messages.
     int linking_subs_sock = -1;         // Socket UDP abonnée à l'adresse de liaison.
     struct sockaddr_in6 linking_addr;   // Adresse de liaison.
@@ -44,6 +45,10 @@ int main(int argc, char const *argv[]) {
         init_personal_addr(&personal_addr, udp_sock_port) < 0)
         goto error;
 
+    // Initialisation udp_serv_sock.
+    udp_serv_sock = make_udp_receiver_socket(personal_addr.sin6_port);
+    if (udp_serv_sock < 0) goto error;
+
     // Initialisation tcp_serv_sock.
     tcp_serv_sock = make_tcp_server_socket(udp_sock_port);
     if (tcp_serv_sock < 0) goto error;
@@ -52,6 +57,7 @@ int main(int argc, char const *argv[]) {
     srand(time(NULL));
     p_data.addr = personal_addr;
     p_data.udp_sock = udp_sock;
+    p_data.udp_serv_sock = udp_serv_sock;
     p_data.tcp_serv_sock = tcp_serv_sock;
     p_data.id = htons(rand() % UINT16_MAX);
     memset(&p_data.cle, 0, sizeof(p_data.cle));
@@ -94,6 +100,7 @@ int main(int argc, char const *argv[]) {
     // TODO: Etape 3
 
     close(udp_sock);
+    close(udp_serv_sock);
     close(tcp_serv_sock);
     close(linking_subs_sock);
     free_list(&peers);
@@ -101,6 +108,7 @@ int main(int argc, char const *argv[]) {
 
 error:
     if (udp_sock) close(udp_sock);
+    if (udp_serv_sock) close(udp_serv_sock);
     if (tcp_serv_sock) close(tcp_serv_sock);
     if (linking_subs_sock) close(linking_subs_sock);
     free_list(&peers);

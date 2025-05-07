@@ -128,7 +128,7 @@ int handle_linking(pers_data *p_data, linked_list *peers, struct sockaddr_in6 li
         attempts++;
         printf("Trying to join the auction system... Attempt %d.\n", attempts);
         if (send_join_request(p_data->udp_sock, linking_addr) < 0) continue;
-        res = await_join_req_response(p_data->tcp_serv_sock, peers);
+        res = await_join_req_response(p_data->udp_serv_sock, peers);
     } while (attempts < 3 && res == 0);
 
     printf("[DEBUG] === Initial response received ===\n");
@@ -170,29 +170,20 @@ int await_join_req_response(int sock, linked_list *peers) {
     int poll_ret;
     struct pollfd fds = {.fd = sock, .events = POLLIN};
     while ((poll_ret = poll(&fds, 1, MILLI(5)))) {
-        // Demande de connexion reçue.
+        // Message reçu.
         if (fds.revents & POLLIN) {
             memset(buf, 0, m_size);
 
-            // Accepte la connexion.
-            int peer = accept(sock, NULL, NULL);
-            if (peer < 0) {
-                perror("[ERROR] accept");
-                continue;
-            }
-
-            if (set_nonblock(peer) < 0) goto error;
-
             // Lecture du message.
             message msg;
-            if (read_msg(peer, &msg, msg_flags, MILLI(5)) < 0) goto error;
+            if (recv_msg_from(&msg, msg_flags, sock, NULL, NULL) < 0) continue;
 
             // Code correct.
             if (msg.code == JOIN_REQ_RES) {
                 got_res = 1;
 
                 peer_data *peer = malloc(sizeof(peer_data));
-                if (!peer) goto error;
+                if (!peer) continue;
 
                 peer->id = msg.id;
                 peer->port = msg.port;
@@ -213,9 +204,6 @@ int await_join_req_response(int sock, linked_list *peers) {
                            ip_str, ntohs(d->port));
                 // ===== DEBUG =====
             }
-
-        error:
-            close(peer);
         }
     }
 
@@ -228,7 +216,7 @@ int await_join_req_response(int sock, linked_list *peers) {
 }
 
 /**************************************************************************************************
- *                                Partage des infos personnelles. *
+ *                                Partage des infos personnelles.                                 *
  **************************************************************************************************/
 
 int handle_pers_data_sharing(pers_data *p_data, linked_list *peers) {
@@ -309,7 +297,7 @@ int await_pers_data_sharing_res(pers_data *p_data, int sock) {
 }
 
 /**************************************************************************************************
- *                   Réception de l'adresse d'enchères + infos des autres pairs. *
+ *                   Réception de l'adresse d'enchères + infos des autres pairs.                  *
  **************************************************************************************************/
 
 int handle_peers_data_sharing(struct sockaddr_in6 *auction_addr, linked_list *peers, int sock) {
@@ -384,7 +372,7 @@ error:
 }
 
 /**************************************************************************************************
- *                               Réception de messages côté pair Q. *
+ *                               Réception de messages côté pair Q.                               *
  **************************************************************************************************/
 
 int handle_join_request(struct sockaddr_in6 addr, pers_data p_data) {
@@ -398,34 +386,14 @@ int handle_join_request(struct sockaddr_in6 addr, pers_data p_data) {
     memcpy(msg.ip, p_data.addr.sin6_addr.s6_addr, sizeof(msg.ip));
     msg.port = p_data.addr.sin6_port;
 
-    // Socket TCP.
-    int sock = socket(PF_INET6, SOCK_STREAM, 0);
-    if (sock < 0) {
-        perror("[ERROR] socket");
-        goto error;
-    }
-
-    // Connexion via TCP sur l'adresse de l'expéditeur.
-    if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        perror("[ERROR] connect");
-        goto error;
-    }
-
-    if (set_nonblock(sock) < 0) {
-        goto error;
-    }
-
     // Envoi de la réponse.
-    if (write_msg(msg, CODE | ID | IP | PORT, sock, MILLI(5)) < 0) goto error;
+    if (send_msg_to(msg, CODE | ID | IP | PORT, p_data.udp_sock, (struct sockaddr *)&addr,
+                    sizeof(addr)))
+        return -1;
 
     printf("[DEBUG] Response sent.\n");
 
-    close(sock);
     return 0;
-
-error:
-    if (sock) close(sock);
-    return -1;
 }
 
 int handle_info_sharing(int peer_sock, peer_data peer, pers_data p_data, linked_list *peers,
