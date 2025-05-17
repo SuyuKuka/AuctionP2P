@@ -2,10 +2,6 @@
 
 #include <string.h>
 
-/**************************************************************************************************
- *                                         message methods                                        *
- **************************************************************************************************/
-
 int concat_msg_to_buf(dyn_array *msg_buf, message *msg, unsigned int flags) {
     if (!msg_buf || !msg) return -1;
 
@@ -93,4 +89,24 @@ void buf_to_msg(const char *buf, message *msg, unsigned int flags) {
         msg->nb = *((uint16_t *)(buf + pos));
         pos += sizeof(msg->nb);
     }
+}
+
+size_t msg_size(int flags) {
+    size_t size = 0;
+    message msg;
+
+    if (flags & CODE) size += sizeof(msg.code);
+    if (flags & ID) size += sizeof(msg.id);
+    if (flags & LMESS) size += sizeof(msg.lmess);
+    if (flags & LSIG) size += sizeof(msg.lsig);
+    if (flags & MESS) size += sizeof(msg.mess);
+    if (flags & SIG) size += sizeof(msg.sig);
+    if (flags & IP) size += sizeof(msg.ip);
+    if (flags & PORT) size += sizeof(msg.port);
+    if (flags & CLE) size += sizeof(msg.cle);
+    if (flags & NUMV) size += sizeof(msg.numv);
+    if (flags & PRIX) size += sizeof(msg.prix);
+    if (flags & NB) size += sizeof(msg.nb);
+
+    return size;
 }

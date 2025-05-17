@@ -10,6 +10,19 @@ typedef struct dyn_array {
     size_t len;  /* Taille actuelle. */
 } dyn_array;
 
+/* Structure pour un tableau de taille variable. */
+typedef struct node {
+    void *data;        /* Données. */
+    struct node *next; /* Prochain élément. */
+    size_t id;         /* Identifiant */
+} node;
+
+/* Structure pour un tableau de taille variable. */
+typedef struct linked_list {
+    node *head;  /* Premier élément. */
+    size_t size; /* Taille. */
+} linked_list;
+
 /**
  * @brief Initialise `arr` de taille initiale `size`.
  *
@@ -50,5 +63,42 @@ void free_dyn_array(dyn_array arr);
  * @return `-1` en cas d'erreur, `0` sinon.
  */
 int concat_to_array(dyn_array *arr, const void *data, size_t data_size);
+
+/**
+ * @brief Alloue un nouveau node.
+ *
+ * @return `NULL` en cas d'erreur, le nouveau node sinon.
+ */
+node *init_node();
+/**
+ * @brief Ajoute le node à la fin de la liste.
+ *
+ * @param[in,out]   n Tableau dynamique.
+ * @param[in,out]   list Liste.
+ */
+void append_to_list(node *n, linked_list *list);
+/**
+ * @brief Retire le node d'ID `id` de la liste.
+ *
+ * @param[in]       id Identifiant du node.
+ * @param[in,out]   list Liste.
+ */
+void remove_from_list(size_t id, linked_list *list);
+/**
+ * @brief Renvoie le dernier node de la liste.
+ *
+ * @return `NULL` en cas d'erreur ou liste vide, le node sinon.
+ */
+node *get_last_node(linked_list *list);
+/**
+ * @brief Renvoie le node à la position `i`.
+ *
+ * @return `NULL` en cas d'erreur ou liste vide, le node sinon.
+ */
+node *get_node(size_t i, linked_list *list);
+/**
+ * @brief Libère la liste chaînée.
+ */
+void free_list(linked_list *list);
 
 #endif
