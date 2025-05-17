@@ -10,7 +10,7 @@
 #include "protocol.h"
 #include "netio.h"
 #include "netutils.h"
-#include "darray.h"
+#include "collections.h"
 
 
 /**
@@ -43,25 +43,14 @@ int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *
     auction_init_msg.numv = htonl(auction_num);     // Numéro de vente
     auction_init_msg.prix = htonl(initial_price);   // Prix initial
 
-    // Préparer le buffer pour l'envoi
-    dyn_array buf;
-    if (init_dyn_array(&buf, 64) < 0) {
-        return -1;
-    }
-    // Concaténer les champs dans le buffer
-    if (concat_msg_to_buf(&buf, &auction_init_msg, CODE | ID | NUMV | PRIX) < 0) {
-        free_dyn_array(buf);
+    // Utiliser les nouvelles fonctions de netio.h au lieu des opérations manuelles de buffer
+    if (send_msg_to(auction_init_msg, CODE | ID | NUMV | PRIX, 
+                    p_data->udp_sock, (struct sockaddr *)&auction_addr, 
+                    sizeof(auction_addr)) < 0) {
+        perror("Failed to send auction initialization");
         return -1;
     }
     
-    // Send message sur l'adresse d'enchères
-    if (sendto(p_data->udp_sock, buf.array, buf.len, 0, 
-               (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
-        perror("Failed to send auction initialization");
-        free_dyn_array(buf);
-        return -1;
-    }
-
     // Ajouter vente à la liste des ventes actives
     auction_info new_auction;
     new_auction.numv = auction_num;
@@ -71,11 +60,9 @@ int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *
     new_auction.is_active = 1;
     
     if (concat_to_array(active_auctions, &new_auction, sizeof(auction_info)) < 0) {
-        free_dyn_array(buf);
         return -1;
     }
     
-    free_dyn_array(buf);
     printf("Auction #%u initiated with initial price %u\n", auction_num, initial_price);
     return 0;
 }
@@ -107,28 +94,14 @@ int place_bid(pers_data *p_data, struct sockaddr_in6 auction_addr,
     bid_msg.numv = htonl(auction_num);  // Numéro de vente
     bid_msg.prix = htonl(bid_price);    // Prix proposé
     
-    // Préparer le buffer pour l'envoi
-    dyn_array buf;
-    if (init_dyn_array(&buf, 64) < 0) {
-        return -1;
-    }
-    
-    // Concaténer les champs dans le buffer
-    if (concat_msg_to_buf(&buf, &bid_msg, CODE | ID | NUMV | PRIX) < 0) {
-        free_dyn_array(buf);
-        return -1;
-    }
-    
-    // Send message sur l'adresse d'enchères
-    if (sendto(p_data->udp_sock, buf.array, buf.len, 0, 
-               (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
+    // Utiliser les nouvelles fonctions de netio.h
+    if (send_msg_to(bid_msg, CODE | ID | NUMV | PRIX, 
+                    p_data->udp_sock, (struct sockaddr *)&auction_addr, 
+                    sizeof(auction_addr)) < 0) {
         perror("Failed to send bid");
-        free_dyn_array(buf);
         return -1;
     }
     
-    free_dyn_array(buf);
-    // printf("Bid of %u placed on auction #%u\n", bid_price, auction_num); // déjà géré par le handler
     return 0;
 }
 
@@ -264,21 +237,30 @@ void *handle_auctions(void *params) {
                             auctions[i].current_price = bid_price;
                             auctions[i].current_bidder = bidder_id;
                             
-                            // Rediff l'enchère avec le code 10
+                            // Rediff l'enchère avec le code 10 (validation)
                             message relay_msg = msg;
                             relay_msg.code = 10;  // Code pour rediff d'enchère
                             
-                            dyn_array buf;
-                            if (init_dyn_array(&buf, 64) >= 0) {
-                                if (concat_msg_to_buf(&buf, &relay_msg, CODE | ID | NUMV | PRIX) >= 0) {
-                                    sendto(p_data->udp_sock, buf.array, buf.len, 0, 
-                                           (struct sockaddr *)&auction_addr, sizeof(auction_addr));
-                                }
-                                free_dyn_array(buf);
+                            // Utiliser les nouvelles fonctions de netio.h pour l'envoi
+                            if (send_msg_to(relay_msg, CODE | ID | NUMV | PRIX, 
+                                          p_data->udp_sock, (struct sockaddr *)&auction_addr, 
+                                          sizeof(auction_addr)) < 0) {
+                                perror("Failed to send bid validation");
+                            } else {
+                                printf(" Validated new bid on auction #%u\n", auction_num);
                             }
-                            printf(" Validated new bid on auction #%u\n", auction_num);
                         } else {
                             printf(" Rejected invalid bid on auction #%u (price too low)\n", auction_num);
+                            
+                            // Envoi d'un message de rejet (AUC_REJECT = 15)
+                            message reject_msg = msg;
+                            reject_msg.code = AUC_REJECT;
+                            
+                            if (send_msg_to(reject_msg, CODE | ID | NUMV | PRIX, 
+                                          p_data->udp_sock, (struct sockaddr *)&auction_addr, 
+                                          sizeof(auction_addr)) < 0) {
+                                perror("Failed to send bid rejection");
+                            }
                         }
                         break;
                     }
@@ -293,7 +275,7 @@ void *handle_auctions(void *params) {
                 uint16_t bidder_id = ntohs(msg.id);
                 
                 printf(" Supervisor validated bid of %u on auction #%u by peer %u\n", bid_price, auction_num, bidder_id);
-
+                
                 // TODO: processus de consensus ici, post code 10
                 
                 // Maj prix actuel dans la liste de ventes
@@ -331,6 +313,81 @@ void *handle_auctions(void *params) {
                     concat_to_array(active_auctions, &new_auction, sizeof(auction_info));
                     printf(" Added new auction #%u to local list with current price %u\n", auction_num, bid_price);
                 }
+                break;
+            }
+
+            // Ajout de nouveaux cas pour gérer les nouveaux codes d'enchères
+            case AUC_NOTICE : {  // Première notification de fin (11)
+                buf_to_msg(buffer, &msg, CODE | ID | NUMV);
+                uint32_t auction_num = ntohl(msg.numv);
+                uint16_t supervisor_id = ntohs(msg.id);
+                
+                printf(" Notice of ending auction #%u from supervisor %u\n", auction_num, supervisor_id);
+                // TODO: Implémenter la gestion de fin d'enchère
+                break;
+            }
+
+            case AUC_END : {     // Fin de la vente (12)
+                buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
+                uint32_t auction_num = ntohl(msg.numv);
+                uint32_t final_price = ntohl(msg.prix);
+                uint16_t winner_id = ntohs(msg.id);
+                
+                printf(" Auction #%u ended, won by peer %u with final price %u\n", 
+                       auction_num, winner_id, final_price);
+                
+                // Marquer l'enchère comme terminée dans la liste
+                auction_info *auctions = (auction_info *)active_auctions->array;
+                int count = active_auctions->len / sizeof(auction_info);
+                
+                for (int i = 0; i < count; i++) {
+                    if (auctions[i].numv == auction_num) {
+                        auctions[i].is_active = 0;
+                        break;
+                    }
+                }
+                break;
+            }
+
+            case AUC_LEAVE : {   // Quitter le système (13)
+                buf_to_msg(buffer, &msg, CODE | ID);
+                uint16_t leaving_peer_id = ntohs(msg.id);
+                
+                printf(" Peer %u is leaving the auction system\n", leaving_peer_id);
+                // TODO: Implémenter la gestion d'un pair qui quitte le système
+                break;
+            }
+
+            case AUC_CONCUR : {  // Concurrence entre deux enchères (14)
+                buf_to_msg(buffer, &msg, CODE | ID | NUMV);
+                uint32_t auction_num = ntohl(msg.numv);
+                uint16_t supervisor_id = ntohs(msg.id);
+                
+                printf(" Concurrency issue detected with auction #%u from supervisor %u\n", 
+                       auction_num, supervisor_id);
+                // TODO: Implémenter la gestion de concurrence
+                break;
+            }
+
+            case AUC_REJECT : {  // Enchère rejetée car invalide (15)
+                buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
+                uint32_t auction_num = ntohl(msg.numv);
+                uint32_t rejected_price = ntohl(msg.prix);
+                uint16_t bidder_id = ntohs(msg.id);
+                
+                printf(" Bid of %u on auction #%u by peer %u was rejected\n", 
+                       rejected_price, auction_num, bidder_id);
+                break;
+            }
+
+            case MISSING_SUP : {  // Superviseur absent (16)
+                buf_to_msg(buffer, &msg, CODE | ID | NUMV);
+                uint32_t auction_num = ntohl(msg.numv);
+                uint16_t reporting_peer_id = ntohs(msg.id);
+                
+                printf(" Supervisor for auction #%u is reported missing by peer %u\n", 
+                       auction_num, reporting_peer_id);
+                // TODO: Implémentation de la gestion d'absence du superviseur
                 break;
             }
 

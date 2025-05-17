@@ -9,6 +9,7 @@
 #include "linking.h"
 #include "netutils.h"
 #include "protocol.h"
+#include "auction_handler.h"
 
 #define LINKING_IP "ff12::feed:bee"
 #define AUCTIONS_IP "ff12::add:beef"
@@ -40,11 +41,11 @@ int main(int argc, char const *argv[]) {
     linked_list peers;                  // Adresses et clés des pairs.
     pers_data p_data;                   // Données personnelles.
     int running = 1;                    // Pour savoir si le pair a quitté ou non le système.
-    dyn_array peers_data;               // Adresses et clés des pairs.
-    pers_data p_data;
     //
+    // Variables pour la gestion des enchères
     uint32_t auction_counter = 0;       // Compteur des ventes initiées
     dyn_array active_auctions;          // Liste des ventes actives
+    init_dyn_array(&active_auctions, sizeof(auction_info));  // Initialisation du tableau dynamique
 
     memset(&peers, 0, sizeof(peers));
     memset(&p_data, 0, sizeof(p_data));
@@ -111,12 +112,15 @@ int main(int argc, char const *argv[]) {
         goto error;
     }
 
+   // Initialisation du thread de gestion des enchères
     pthread_t auction_thread;
     auction_handler_params *auction_params = malloc(sizeof(auction_handler_params));
+    if (auction_params == NULL) {
+        goto error;
+    }
     auction_params->p_data = &p_data;
     auction_params->auction_addr = auction_addr;
     auction_params->active_auctions = &active_auctions;
-    auction_params->auction_counter = &auction_counter;
 
     if (pthread_create(&auction_thread, NULL, handle_auctions, auction_params) < 0) {
         free(auction_params);
@@ -130,7 +134,7 @@ int main(int argc, char const *argv[]) {
     char input[256];
     char cmd[64];
 
-    while (1) {
+    while (running) {
         fflush(stdout);
         printf("> ");
         
@@ -170,7 +174,8 @@ int main(int argc, char const *argv[]) {
         else if (strcmp(cmd, "help") == 0) {    // Afficher l'aide
             print_help();
         }
-        else if (strcmp(cmd, "quit") == 0) {    // Quit
+        else if (strcmp(cmd, "quit") == 0) {    // Quitter
+            running = 0;
             break;
         }
         else {
@@ -179,7 +184,6 @@ int main(int argc, char const *argv[]) {
     }
     // while (1);
     // TODO: Etape 3
-    /* Initialiser le thread des enchères ici ? */
 
     // Nettoyage des ressources
     free(auction_params);
@@ -196,6 +200,7 @@ int main(int argc, char const *argv[]) {
     close(tcp_serv_sock);
     close(linking_subs_sock);
     free_list(&peers);
+    free_dyn_array(active_auctions);
     return EXIT_SUCCESS;
 
 error:
@@ -204,7 +209,6 @@ error:
     if (tcp_serv_sock) close(tcp_serv_sock);
     if (linking_subs_sock) close(linking_subs_sock);
     free_list(&peers);
-    free_dyn_array(peers_data);
-    free_dyn_array(active_auctions); //
+    free_dyn_array(active_auctions);
     return EXIT_FAILURE;
 }
