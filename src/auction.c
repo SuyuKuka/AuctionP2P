@@ -41,14 +41,12 @@ int main(int argc, char const *argv[]) {
     linked_list peers;                  // Adresses et clés des pairs.
     pers_data p_data;                   // Données personnelles.
     int running = 1;                    // Pour savoir si le pair a quitté ou non le système.
-    //
-    // Variables pour la gestion des enchères
     uint32_t auction_counter = 0;       // Compteur des ventes initiées
     dyn_array active_auctions;          // Liste des ventes actives
-    init_dyn_array(&active_auctions, sizeof(auction_info));  // Initialisation du tableau dynamique
 
     memset(&peers, 0, sizeof(peers));
     memset(&p_data, 0, sizeof(p_data));
+    init_dyn_array(&active_auctions, sizeof(auction_info));
 
     // Initialisation udp_sock.
     udp_sock = make_udp_socket();
@@ -130,7 +128,7 @@ int main(int argc, char const *argv[]) {
     printf("\nAuction system initialized. Type 'help' for available commands.\n");
 
 
-    // Interface utilisateur pour gérer les enchères
+    // Interface user pour la gestion des enchères
     char input[256];
     char cmd[64];
 
@@ -182,7 +180,6 @@ int main(int argc, char const *argv[]) {
             printf("Unknown command. Type 'help' for available commands.\n");
         }
     }
-    // while (1);
     // TODO: Etape 3
 
     // Nettoyage des ressources
@@ -193,7 +190,6 @@ int main(int argc, char const *argv[]) {
     pthread_join(join_req_thread, NULL);
     pthread_cancel(d_sharing_thread);
     pthread_join(d_sharing_thread, NULL);
-    //
 
     close(udp_sock);
     close(udp_serv_sock);

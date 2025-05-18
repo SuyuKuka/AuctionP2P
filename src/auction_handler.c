@@ -31,10 +31,10 @@
 int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *counter, uint32_t initial_price, dyn_array *active_auctions) {
     (*counter)++;
     
-    // Créer un num unique de vente: concaténation de l'ID et du compteur
+    // Création du numéro de l'enchère via concaténation de l'ID et du compteur
     uint32_t auction_num = (ntohs(p_data->id) << 16) | *counter;
     
-    // Préparer le message d'initialisation de vente (code 8)
+    // Préparation du message d'initialisation de vente (code 8)
     message auction_init_msg;
     memset(&auction_init_msg, 0, sizeof(message));
     
@@ -43,7 +43,6 @@ int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *
     auction_init_msg.numv = htonl(auction_num);     // Numéro de vente
     auction_init_msg.prix = htonl(initial_price);   // Prix initial
 
-    // Utiliser les nouvelles fonctions de netio.h au lieu des opérations manuelles de buffer
     if (send_msg_to(auction_init_msg, CODE | ID | NUMV | PRIX, 
                     p_data->udp_sock, (struct sockaddr *)&auction_addr, 
                     sizeof(auction_addr)) < 0) {
@@ -51,7 +50,7 @@ int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *
         return -1;
     }
     
-    // Ajouter vente à la liste des ventes actives
+    // Ajout de la vente à la liste
     auction_info new_auction;
     new_auction.numv = auction_num;
     new_auction.supervisor_id = ntohs(p_data->id);
@@ -85,7 +84,7 @@ int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *
 int place_bid(pers_data *p_data, struct sockaddr_in6 auction_addr,
               uint32_t auction_num, uint32_t bid_price) {
     
-    // Préparer le message d'enchère (code 9)
+    // Préparation du message d'enchère (code 9)
     message bid_msg;
     memset(&bid_msg, 0, sizeof(message));
     
@@ -94,7 +93,6 @@ int place_bid(pers_data *p_data, struct sockaddr_in6 auction_addr,
     bid_msg.numv = htonl(auction_num);  // Numéro de vente
     bid_msg.prix = htonl(bid_price);    // Prix proposé
     
-    // Utiliser les nouvelles fonctions de netio.h
     if (send_msg_to(bid_msg, CODE | ID | NUMV | PRIX, 
                     p_data->udp_sock, (struct sockaddr *)&auction_addr, 
                     sizeof(auction_addr)) < 0) {
@@ -151,7 +149,7 @@ void *handle_auctions(void *params) {
     struct sockaddr_in6 auction_addr = p->auction_addr;
     dyn_array *active_auctions = p->active_auctions;
     
-    // Créer socket, listen les messages d'enchères
+    // Création socket, listen les messages d'enchères
     int listen_sock = make_multicast_socket(auction_addr);
     if (listen_sock < 0) {
         perror("Failed to create multicast socket for auctions");
@@ -231,7 +229,7 @@ void *handle_auctions(void *params) {
                         auctions[i].supervisor_id == ntohs(p_data->id) && 
                         auctions[i].is_active) {
                         
-                        // Check si l'enchère est valide (prix > prix actuel)
+                        // Check si l'enchère est valide
                         if (bid_price > auctions[i].current_price) {
                             // Maj prix actuel et l'enchérisseur
                             auctions[i].current_price = bid_price;
@@ -239,9 +237,8 @@ void *handle_auctions(void *params) {
                             
                             // Rediff l'enchère avec le code 10 (validation)
                             message relay_msg = msg;
-                            relay_msg.code = 10;  // Code pour rediff d'enchère
+                            relay_msg.code = 10;
                             
-                            // Utiliser les nouvelles fonctions de netio.h pour l'envoi
                             if (send_msg_to(relay_msg, CODE | ID | NUMV | PRIX, 
                                           p_data->udp_sock, (struct sockaddr *)&auction_addr, 
                                           sizeof(auction_addr)) < 0) {
@@ -316,7 +313,6 @@ void *handle_auctions(void *params) {
                 break;
             }
 
-            // Ajout de nouveaux cas pour gérer les nouveaux codes d'enchères
             case AUC_NOTICE : {  // Première notification de fin (11)
                 buf_to_msg(buffer, &msg, CODE | ID | NUMV);
                 uint32_t auction_num = ntohl(msg.numv);
@@ -336,7 +332,7 @@ void *handle_auctions(void *params) {
                 printf(" Auction #%u ended, won by peer %u with final price %u\n", 
                        auction_num, winner_id, final_price);
                 
-                // Marquer l'enchère comme terminée dans la liste
+                // Marquer l'enchère comme finie dans la liste
                 auction_info *auctions = (auction_info *)active_auctions->array;
                 int count = active_auctions->len / sizeof(auction_info);
                 
@@ -354,7 +350,7 @@ void *handle_auctions(void *params) {
                 uint16_t leaving_peer_id = ntohs(msg.id);
                 
                 printf(" Peer %u is leaving the auction system\n", leaving_peer_id);
-                // TODO: Implémenter la gestion d'un pair qui quitte le système
+                // TODO: Implémenter la gestion d'un pair quittant le système
                 break;
             }
 
