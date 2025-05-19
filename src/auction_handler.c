@@ -32,7 +32,7 @@ int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *
     (*counter)++;
     
     // Création du numéro de l'enchère via concaténation de l'ID et du compteur
-    uint32_t auction_num = (ntohs(p_data->id) << 16) | *counter;
+    uint32_t auction_num = *counter;
     
     // Préparation du message d'initialisation de vente (code 8)
     message auction_init_msg;

@@ -31,18 +31,18 @@ int main(int argc, char const *argv[]) {
     (void)argv;
 
     int res;
-    int udp_sock = -1;                  // Socket UDP pour l'envoi de messages.
-    int udp_serv_sock = -1;             // Socket UDP pour la réception de messages en unicast.
-    int tcp_serv_sock = -1;             // Socket TCP pour la réception de messages.
-    int linking_subs_sock = -1;         // Socket UDP abonnée à l'adresse de liaison.
-    struct sockaddr_in6 linking_addr;   // Adresse de liaison.
-    struct sockaddr_in6 auction_addr;   // Adresse d'enchères.
-    struct sockaddr_in6 personal_addr;  // Adresse personnelle.
-    linked_list peers;                  // Adresses et clés des pairs.
-    pers_data p_data;                   // Données personnelles.
-    int running = 1;                    // Pour savoir si le pair a quitté ou non le système.
-    uint32_t auction_counter = 0;       // Compteur des ventes initiées
-    dyn_array active_auctions;          // Liste des ventes actives
+    int udp_sock = -1;                      // Socket UDP pour l'envoi de messages.
+    int udp_serv_sock = -1;                 // Socket UDP pour la réception de messages en unicast.
+    int tcp_serv_sock = -1;                 // Socket TCP pour la réception de messages.
+    int linking_subs_sock = -1;             // Socket UDP abonnée à l'adresse de liaison.
+    struct sockaddr_in6 linking_addr;       // Adresse de liaison.
+    struct sockaddr_in6 auction_addr;       // Adresse d'enchères.
+    struct sockaddr_in6 personal_addr;      // Adresse personnelle.
+    linked_list peers;                      // Adresses et clés des pairs.
+    pers_data p_data;                       // Données personnelles.
+    int running = 1;                        // Pour savoir si le pair a quitté ou non le système.
+    static uint32_t auction_counter = 0;    // Compteur des ventes initiées
+    dyn_array active_auctions;              // Liste des ventes actives
 
     memset(&peers, 0, sizeof(peers));
     memset(&p_data, 0, sizeof(p_data));
@@ -151,6 +151,8 @@ int main(int argc, char const *argv[]) {
             if (sscanf(input, "%*s %u", &initial_price) == 1) {
                 if (init_auction(&p_data, auction_addr, &auction_counter, initial_price, &active_auctions) < 0) {
                     printf("Failed to initialize auction\n");
+                } else {
+                    printf("Auction #%u initialized with price %u\n", auction_counter, initial_price);
                 }
             } else {
                 printf("Usage: init <initial_price>\n");
