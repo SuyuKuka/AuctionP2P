@@ -188,7 +188,7 @@ void *handle_auctions(void *params) {
                 printf(" New auction #%u initiated by peer %u with initial price %u\n", 
                        auction_num, peer_id, price);
                 
-                // Mettre à jour le compteur local si nécessaire pour éviter conflits
+                // Mise à jour du compteur pour éviter conflits
                 if (auction_num > *auction_counter) {
                     *auction_counter = auction_num;
                 }
@@ -213,7 +213,6 @@ void *handle_auctions(void *params) {
                     new_auction.is_active = 1;
                     
                     concat_to_array(active_auctions, &new_auction, sizeof(auction_info));
-                    printf(" Added auction #%u to local list\n", auction_num);
                 }
                 break;
             }

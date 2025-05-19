@@ -128,7 +128,6 @@ int main(int argc, char const *argv[]) {
 
     printf("\nAuction system initialized. Type 'help' for available commands.\n");
 
-
     // Interface user pour la gestion des enchères
     char input[256];
     char cmd[64];
@@ -157,7 +156,7 @@ int main(int argc, char const *argv[]) {
                 printf("Usage: init <initial_price>\n");
             }
         }
-         else if (strcmp(cmd, "bid") == 0) {    // Placer une enchère
+         else if (strcmp(cmd, "bid") == 0) {    // Placer une offre
             uint32_t auction_num, bid_price;
             if (sscanf(input, "%*s %u %u", &auction_num, &bid_price) == 2) {
                 if (place_bid(&p_data, auction_addr, auction_num, bid_price) < 0) {
