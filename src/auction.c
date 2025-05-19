@@ -41,7 +41,7 @@ int main(int argc, char const *argv[]) {
     linked_list peers;                      // Adresses et clés des pairs.
     pers_data p_data;                       // Données personnelles.
     int running = 1;                        // Pour savoir si le pair a quitté ou non le système.
-    static uint32_t auction_counter = 0;    // Compteur des ventes initiées
+    uint32_t auction_counter = 0;    // Compteur des ventes initiées
     dyn_array active_auctions;              // Liste des ventes actives
 
     memset(&peers, 0, sizeof(peers));
@@ -151,8 +151,6 @@ int main(int argc, char const *argv[]) {
             if (sscanf(input, "%*s %u", &initial_price) == 1) {
                 if (init_auction(&p_data, auction_addr, &auction_counter, initial_price, &active_auctions) < 0) {
                     printf("Failed to initialize auction\n");
-                } else {
-                    printf("Auction #%u initialized with price %u\n", auction_counter, initial_price);
                 }
             } else {
                 printf("Usage: init <initial_price>\n");
