@@ -31,7 +31,7 @@
 int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *counter, uint32_t initial_price, dyn_array *active_auctions) {
     (*counter)++;
     
-    // Création du numéro de l'enchère via concaténation de l'ID et du compteur
+    // Utilisation directe du compteur comme numéro de vente
     uint32_t auction_num = *counter;
     
     // Préparation du message d'initialisation de vente (code 8)
@@ -148,6 +148,7 @@ void *handle_auctions(void *params) {
     pers_data *p_data = p->p_data;
     struct sockaddr_in6 auction_addr = p->auction_addr;
     dyn_array *active_auctions = p->active_auctions;
+    uint32_t *auction_counter = p->auction_counter;
     
     // Création socket, listen les messages d'enchères
     int listen_sock = make_multicast_socket(auction_addr);
@@ -165,7 +166,6 @@ void *handle_auctions(void *params) {
     while (1) {
         // Recevoir les messages
         int recv_len = recvfrom(listen_sock, buffer, sizeof(buffer), 0, (struct sockaddr *)&sender_addr, &sender_len);
-        
         if (recv_len <= 0) {
             continue;
         }
@@ -188,6 +188,11 @@ void *handle_auctions(void *params) {
                 printf(" New auction #%u initiated by peer %u with initial price %u\n", 
                        auction_num, peer_id, price);
                 
+                // Mettre à jour le compteur local si nécessaire pour éviter conflits
+                if (auction_num > *auction_counter) {
+                    *auction_counter = auction_num;
+                }
+
                 // Check si cette vente existe déjà
                 int exists = 0;
                 auction_info *auctions = (auction_info *)active_auctions->array;
@@ -208,6 +213,7 @@ void *handle_auctions(void *params) {
                     new_auction.is_active = 1;
                     
                     concat_to_array(active_auctions, &new_auction, sizeof(auction_info));
+                    printf(" Added auction #%u to local list\n", auction_num);
                 }
                 break;
             }

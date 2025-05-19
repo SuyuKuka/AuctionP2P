@@ -17,9 +17,10 @@ typedef struct auction_info {
 
 /* Structure pour les paramètres du thread de gestion des enchères */
 typedef struct auction_handler_params {
-    pers_data *p_data;                /* Données personnelles */
-    struct sockaddr_in6 auction_addr; /* Adresse multicast d'enchères */
-    dyn_array *active_auctions;       /* Liste des enchères actives */
+    pers_data *p_data;                  /* Données personnelles */
+    struct sockaddr_in6 auction_addr;   /* Adresse multicast d'enchères */
+    dyn_array *active_auctions;         /* Liste des enchères actives */
+    uint32_t *auction_counter;          /* Pointeur vers le compteur d'enchères */
 } auction_handler_params;
 
 /**

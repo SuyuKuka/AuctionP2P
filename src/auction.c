@@ -119,6 +119,7 @@ int main(int argc, char const *argv[]) {
     auction_params->p_data = &p_data;
     auction_params->auction_addr = auction_addr;
     auction_params->active_auctions = &active_auctions;
+    auction_params->auction_counter = &auction_counter;
 
     if (pthread_create(&auction_thread, NULL, handle_auctions, auction_params) < 0) {
         free(auction_params);
