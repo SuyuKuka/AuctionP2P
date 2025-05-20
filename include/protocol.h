@@ -38,6 +38,7 @@ enum Codes {
     JOIN_SHARE_ALL_INFO = 7,    /* Join system : partage de l'identité de tous au demandeur. */
     AUC_INIT = 8,               /* Auction : initialisation d'une vente. */
     AUC_BID = 9,                /* Auction : enchérir sur une vente. */
+    AUC_SUP_REDIFF = 10,        /* Auction : le superviseur rediffuse une enchère. */
     AUC_NOTICE = 11,            /* Auction : première notification de fin. */
     AUC_END = 12,               /* Auction : fin de la vente. */
     AUC_LEAVE = 13,             /* Auction : quitter le système. */
