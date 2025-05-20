@@ -75,11 +75,12 @@ int handle_peers_data_sharing(struct sockaddr_in6 *auction_addr, linked_list *pe
  * renvoyé.
  *
  * @param[in]   peers Données des pairs.
+ * @param[in]   pers_id ID personnel.
  * @param[in]   id ID reçu.
  *
  * @return `id` si l'ID est unique, sinon un nouvel ID en /!\ big-endian.
  */
-int verify_id(linked_list peers, uint16_t id);
+int verify_id(linked_list peers, uint16_t pers_id, uint16_t id);
 /**
  * @brief Envoi du message contenant la validité de l'ID. (`code = 50` ou `code = 51`).
  *
@@ -279,18 +280,20 @@ int send_pers_data_to_peer(pers_data p_data, peer_data peer, int sock) {
 }
 
 int await_pers_data_sharing_res(pers_data *p_data, int sock) {
-    char buf[3];
-    if (read_nb(sock, &buf, sizeof(buf), MILLI(5)) < 0) return -1;
+    uint8_t code;
+    if (read_nb(sock, &code, sizeof(code), MILLI(5)) < 0) return -1;
 
-    if (buf[0] == JOIN_INVALID_ID) {
+    if (code == JOIN_INVALID_ID) {
+        uint16_t id;
+        if (read_nb(sock, &id, sizeof(id), MILLI(5)) < 0) return -1;
         printf("[DEBUG] ID %d already used.\n", ntohs(p_data->id));
-        memcpy(&(p_data->id), buf + 1, sizeof(p_data->id));
+        p_data->id = id;
         printf("[DEBUG] New ID set: %d.\n", ntohs(p_data->id));
-    } else if (buf[0] != JOIN_VALID_ID) {
-        printf("[DEBUG] Invalid ID response code received: %d.\n", buf[0]);
+    } else if (code != JOIN_VALID_ID) {
+        printf("[DEBUG] Invalid ID response code received: %d.\n", code);
         return -1;
     } else {
-        printf("[DEBUG] Valid ID response code received: %d.\n", buf[0]);
+        printf("[DEBUG] Valid ID response code received: %d.\n", code);
     }
 
     return 0;
@@ -399,14 +402,15 @@ int handle_join_request(struct sockaddr_in6 addr, pers_data p_data) {
 int handle_info_sharing(int peer_sock, peer_data peer, pers_data p_data, linked_list *peers,
                         struct sockaddr_in6 auction_addr) {
     // Vérification de l'ID.
-    int new_id = verify_id(*peers, peer.id);
+    int new_id = verify_id(*peers, p_data.id, peer.id);
 
     // Réponse à l'expéditeur :
-    if (send_id_validity(peer_sock, peer.id, peer.id == new_id) < 0) return -1;
+    if (send_id_validity(peer_sock, new_id, peer.id == new_id) < 0) return -1;
 
     // Ajout des données du pair dans `peers`.
     node *peer_node = init_node();
     if (!peer_node) return -1;
+    peer.id = new_id;
     peer_node->data = &peer;
     append_to_list(peer_node, peers);
 
@@ -453,15 +457,15 @@ int handle_info_sharing_to_all(peer_data peer, linked_list *peers) {
     return 0;
 }
 
-int verify_id(linked_list peers, uint16_t id) {
-    int exists;
-    do {
-        exists = 0;
-        for (node *i = peers.head; i != NULL; i = i->next) {
-            if (((peer_data *)i->data)->id == id) exists = 1;
+int verify_id(linked_list peers, uint16_t pers_id, uint16_t id) {
+    int exists = pers_id == id;
+    for (node *i = peers.head; i != NULL; i = i->next) {
+        if (((peer_data *)i->data)->id == id) {
+            exists = 1;
+            break;
         }
-        if (exists) id = htons(rand() % UINT16_MAX);
-    } while (exists);
+    }
+    if (exists) id = htons(rand() % UINT16_MAX);
     return id;
 }
 

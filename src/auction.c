@@ -5,11 +5,11 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "auction_handler.h"
 #include "handlers.h"
 #include "linking.h"
 #include "netutils.h"
 #include "protocol.h"
-#include "auction_handler.h"
 
 #define LINKING_IP "ff12::feed:bee"
 #define AUCTIONS_IP "ff12::add:beef"
@@ -31,18 +31,18 @@ int main(int argc, char const *argv[]) {
     (void)argv;
 
     int res;
-    int udp_sock = -1;                      // Socket UDP pour l'envoi de messages.
-    int udp_serv_sock = -1;                 // Socket UDP pour la réception de messages en unicast.
-    int tcp_serv_sock = -1;                 // Socket TCP pour la réception de messages.
-    int linking_subs_sock = -1;             // Socket UDP abonnée à l'adresse de liaison.
-    struct sockaddr_in6 linking_addr;       // Adresse de liaison.
-    struct sockaddr_in6 auction_addr;       // Adresse d'enchères.
-    struct sockaddr_in6 personal_addr;      // Adresse personnelle.
-    linked_list peers;                      // Adresses et clés des pairs.
-    pers_data p_data;                       // Données personnelles.
-    int running = 1;                        // Pour savoir si le pair a quitté ou non le système.
-    uint32_t auction_counter = 0;    // Compteur des ventes initiées
-    dyn_array active_auctions;              // Liste des ventes actives
+    int udp_sock = -1;                  // Socket UDP pour l'envoi de messages.
+    int udp_serv_sock = -1;             // Socket UDP pour la réception de messages en unicast.
+    int tcp_serv_sock = -1;             // Socket TCP pour la réception de messages.
+    int linking_subs_sock = -1;         // Socket UDP abonnée à l'adresse de liaison.
+    struct sockaddr_in6 linking_addr;   // Adresse de liaison.
+    struct sockaddr_in6 auction_addr;   // Adresse d'enchères.
+    struct sockaddr_in6 personal_addr;  // Adresse personnelle.
+    linked_list peers;                  // Adresses et clés des pairs.
+    pers_data p_data;                   // Données personnelles.
+    int running = 1;                    // Pour savoir si le pair a quitté ou non le système.
+    unsigned int auction_counter = 0;   // Compteur des ventes initiées.
+    dyn_array active_auctions;          // Liste des ventes actives.
 
     memset(&peers, 0, sizeof(peers));
     memset(&p_data, 0, sizeof(p_data));
@@ -110,21 +110,14 @@ int main(int argc, char const *argv[]) {
         goto error;
     }
 
-   // Initialisation du thread de gestion des enchères
+    // Initialisation du thread de gestion des enchères
     pthread_t auction_thread;
-    auction_handler_params *auction_params = malloc(sizeof(auction_handler_params));
-    if (auction_params == NULL) {
-        goto error;
-    }
-    auction_params->p_data = &p_data;
-    auction_params->auction_addr = auction_addr;
-    auction_params->active_auctions = &active_auctions;
-    auction_params->auction_counter = &auction_counter;
-
-    if (pthread_create(&auction_thread, NULL, handle_auctions, auction_params) < 0) {
-        free(auction_params);
-        goto error;
-    }
+    auction_handler_params auction_params = {.p_data = &p_data,
+                                             .auction_addr = auction_addr,
+                                             .active_auctions = &active_auctions,
+                                             .auction_counter = &auction_counter,
+                                             .running = &running};
+    if (pthread_create(&auction_thread, NULL, handle_auctions, &auction_params) < 0) goto error;
 
     printf("\nAuction system initialized. Type 'help' for available commands.\n");
 
@@ -133,30 +126,32 @@ int main(int argc, char const *argv[]) {
     char cmd[64];
 
     while (running) {
+        memset(input, 0, sizeof(input));
+        memset(cmd, 0, sizeof(cmd));
         fflush(stdout);
         printf("> ");
-        
+
         // Obtenir la cmd de l'user
         if (fgets(input, sizeof(input), stdin) == NULL) {
             break;
         }
-        
+
         // Extraction de la cmd
         if (sscanf(input, "%s", cmd) != 1) {
             continue;
         }
-        
-        if (strcmp(cmd, "init") == 0) {         // Init une nouvelle vente
+
+        if (strcmp(cmd, "init") == 0) {  // Init une nouvelle vente
             uint32_t initial_price;
             if (sscanf(input, "%*s %u", &initial_price) == 1) {
-                if (init_auction(&p_data, auction_addr, &auction_counter, initial_price, &active_auctions) < 0) {
+                if (init_auction(&p_data, auction_addr, &auction_counter, initial_price,
+                                 &active_auctions) < 0) {
                     printf("Failed to initialize auction\n");
                 }
             } else {
                 printf("Usage: init <initial_price>\n");
             }
-        }
-         else if (strcmp(cmd, "bid") == 0) {    // Placer une offre
+        } else if (strcmp(cmd, "bid") == 0) {  // Placer une offre
             uint32_t auction_num, bid_price;
             if (sscanf(input, "%*s %u %u", &auction_num, &bid_price) == 2) {
                 if (place_bid(&p_data, auction_addr, auction_num, bid_price) < 0) {
@@ -165,25 +160,19 @@ int main(int argc, char const *argv[]) {
             } else {
                 printf("Usage: bid <auction_number> <bid_price>\n");
             }
-        }
-        else if (strcmp(cmd, "list") == 0) {
+        } else if (strcmp(cmd, "list") == 0) {
             list_auctions(&active_auctions);    // Lister les ventes actives
-        }
-        else if (strcmp(cmd, "help") == 0) {    // Afficher l'aide
+        } else if (strcmp(cmd, "help") == 0) {  // Afficher l'aide
             print_help();
-        }
-        else if (strcmp(cmd, "quit") == 0) {    // Quitter
+        } else if (strcmp(cmd, "quit") == 0) {  // Quitter
             running = 0;
             break;
-        }
-        else {
+        } else {
             printf("Unknown command. Type 'help' for available commands.\n");
         }
     }
-    // TODO: Etape 3
 
     // Nettoyage des ressources
-    free(auction_params);
     pthread_cancel(auction_thread);
     pthread_join(auction_thread, NULL);
     pthread_cancel(join_req_thread);

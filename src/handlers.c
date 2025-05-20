@@ -28,7 +28,7 @@ void *handle_multicast(void *arg) {
     if (auction_subs_sock < 0) goto error;
 
     message msg;
-    while (args->running) {
+    while (*args->running) {
         memset(&msg, 0, sizeof(msg));
 
         // Adresse de l'expéditeur.
@@ -72,7 +72,7 @@ void *handle_tcp(void *arg) {
 
     message msg;
 
-    while (args->running) {
+    while (*args->running) {
         memset(&msg, 0, sizeof(msg));
 
         // Accepte la connexion.
