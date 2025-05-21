@@ -255,7 +255,10 @@ void *handle_auctions(void *params) {
                 uint16_t bidder_id = ntohs(msg.id);
 
                 // Si l'enchère n'existe pas, on ignore le message.
-                if (check_auction_exists(active_auctions, auction_num)) break;
+                if (!check_auction_exists(active_auctions, auction_num)) {
+                    printf(" Ignoring bid for non-existent auction #%u\n", auction_num);
+                    break;
+                }
 
                 printf(" Bid of %u on auction #%u by peer %u\n", bid_price, auction_num, bidder_id);
 
@@ -351,10 +354,22 @@ void *handle_auctions(void *params) {
                 buf_to_msg(buffer, &msg, CODE | ID | NUMV);
                 uint32_t auction_num = ntohl(msg.numv);
                 uint16_t supervisor_id = ntohs(msg.id);
+                uint32_t current_price = ntohl(msg.prix);
 
-                printf(" Notice of ending auction #%u from supervisor %u\n", auction_num,
-                       supervisor_id);
-                // TODO: Implémenter la gestion de fin d'enchère
+                printf(" Notice of ending auction #%u from supervisor %u with current price at %u\n", 
+                        auction_num, supervisor_id, current_price);
+
+                // Mise à jour de l'état de l'enchère
+                auction_info *auctions = (auction_info *)active_auctions->array;
+                int count = active_auctions->len / sizeof(auction_info);
+                
+                for (int i = 0; i < count; i++) {
+                    if (auctions[i].numv == auction_num && auctions[i].is_active) {
+                        // On active le flag de la première notification
+                        auctions[i].notice_sent = 1;
+                        break;
+                    }
+                }
                 break;
             }
 

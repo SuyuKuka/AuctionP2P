@@ -169,8 +169,8 @@ int main(int argc, char const *argv[]) {
             } else {
                 printf("Usage: bid <auction_number> <bid_price>\n");
             }
-        } else if (strcmp(cmd, "list") == 0) {
-            list_auctions(&active_auctions);    // Lister les ventes actives
+        } else if (strcmp(cmd, "list") == 0) {  // Lister les ventes actives
+            list_auctions(&active_auctions);    
         } else if (strcmp(cmd, "help") == 0) {  // Afficher l'aide
             print_help();
         } else if (strcmp(cmd, "quit") == 0) {  // Quitter
