@@ -92,14 +92,6 @@ void list_auctions(dyn_array *active_auctions) {
     }
 }
 
-/**
- * @brief Vérifie si l'enchère existe dans la liste des enchères.
- *
- * @param[in]   active_auctions Buffer.
- * @param[in]   auction_num Message.
- *
- * @return `1` si elle existe, `0` sinon.
- */
 int check_auction_exists(dyn_array *active_auctions, uint32_t auction_num) {
     const auction_info *auctions = (auction_info *)active_auctions->array;
     int count = active_auctions->len / sizeof(auction_info);
@@ -127,7 +119,7 @@ int send_auction_notice(pers_data *p_data, struct sockaddr_in6 auction_addr,
         return -1;
     }
     
-    printf(" Sent first notice for auction #%u with current price %u\n", 
+    printf("  Sent first notice for auction #%u with current price %u\n", 
            auction_num, current_price);
     return 0;
 }
@@ -155,7 +147,7 @@ void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr
                 } else {
                     // Deuxième notification et fin (code 12)
                     // TODO: d) 2.
-                    printf("Oulala vérification pour la 2ème notification !\n");
+                    printf("  Oulala vérification pour la 2ème notification !\n");
                 }
             }
         }
@@ -323,7 +315,7 @@ void *handle_auctions(void *params) {
                 break;
             }
 
-            case AUC_SUP_REDIFF: {  // Rediff de l'enchère par le superviseur
+            case AUC_SUP_REDIFF: {  // Rediff de l'enchère par le superviseur (10)
                 buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
                 uint32_t auction_num = ntohl(msg.numv);
                 uint32_t bid_price = ntohl(msg.prix);
@@ -350,7 +342,7 @@ void *handle_auctions(void *params) {
                 break;
             }
 
-            case AUC_NOTICE: {  // TODO: Première notification de fin (11)
+            case AUC_NOTICE: { // Première notification de prix final (11)
                 buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
                 uint32_t auction_num = ntohl(msg.numv);
                 uint16_t supervisor_id = ntohs(msg.id);
@@ -365,7 +357,7 @@ void *handle_auctions(void *params) {
                 
                 for (int i = 0; i < count; i++) {
                     if (auctions[i].numv == auction_num && auctions[i].is_active) {
-                        // On active le flag de la première notification
+                        // Activation du flag de la première notification
                         auctions[i].notice_sent = 1;
                         break;
                     }

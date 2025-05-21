@@ -10,16 +10,16 @@
 
 /* Structure d'une enchère */
 typedef struct auction_info {
-    uint32_t numv;           /* Numéro de vente */
-    uint16_t supervisor_id;  /* ID du superviseur */
-    uint32_t current_price;  /* Prix actuel */
-    uint16_t current_bidder; /* ID de l'enchérisseur actuel */
-    int is_active;           /* Indicateur si l'enchère est active */
-    time_t last_activity;     /* Timestamp de la dernière activité */
-    int notice_sent;          /* Si la première notification a été envoyée */
+    uint32_t numv;              /* Numéro de vente */
+    uint16_t supervisor_id;     /* ID du superviseur */
+    uint32_t current_price;     /* Prix actuel */
+    uint16_t current_bidder;    /* ID de l'enchérisseur actuel */
+    int is_active;              /* Indicateur si l'enchère est active */
+    time_t last_activity;       /* Timestamp de la dernière activité */
+    int notice_sent;            /* Si la première notification a été envoyée */
 } auction_info;
 
-#define T3_SECONDS 15  // 15 secondes pour les tests, à modif
+#define T3_SECONDS 20  // 20 secondes, pour tests
 
 /* Structure pour les paramètres du thread de gestion des enchères */
 typedef struct auction_handler_params {
@@ -74,7 +74,6 @@ int place_bid(const pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_
  * @param[in]   active_auctions Liste des enchères actives
  */
 void list_auctions(dyn_array *active_auctions);
-
 
 /**
  * @brief Vérifie si l'enchère existe dans la liste des enchères.
@@ -134,7 +133,7 @@ void *auction_timer_thread(void *params);
  *
  * - l'écoute des messages d'enchères sur l'addr multicast;
  *
- * - traiter des différents types de messages (`AUC_INIT`, `AUC_BID`, 10);
+ * - traiter des différents types de messages (`AUC_INIT`, `AUC_BID`, 'AUC_SUP_REDIFF' et plus à rajouter);
  *
  * - mettre à jour la liste active_auctions;
  *

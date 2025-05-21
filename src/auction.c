@@ -125,7 +125,7 @@ int main(int argc, char const *argv[]) {
         fprintf(stderr, "Failed to create auction timer thread\n");
         // Continue même si le thread ne démarre pas (non critique?)
     } else {
-        printf("Auction timer thread started\n");
+        printf("\nAuction-timer thread started.\n");
     }
 
     printf("\nAuction system initialized. Type 'help' for available commands.\n");
