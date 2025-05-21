@@ -42,6 +42,8 @@ int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *
     new_auction.current_price = initial_price;
     new_auction.current_bidder = ntohs(p_data->id);
     new_auction.is_active = 1;
+    new_auction.last_activity = time(NULL);
+    new_auction.notice_sent = 0;
 
     if (concat_to_array(active_auctions, &new_auction, sizeof(auction_info)) < 0) {
         return -1;
@@ -105,6 +107,74 @@ int check_auction_exists(dyn_array *active_auctions, uint32_t auction_num) {
         if (auctions[i].numv == auction_num) return 1;
     }
     return 0;
+}
+
+int send_auction_notice(pers_data *p_data, struct sockaddr_in6 auction_addr,
+                       uint32_t auction_num, uint32_t current_price) {
+    // Préparation du message de notification (code 11)
+    message notice_msg;
+    memset(&notice_msg, 0, sizeof(message));
+    
+    notice_msg.code = AUC_NOTICE;           // CODE = 11
+    notice_msg.id = p_data->id;             // ID du pair (superviseur)
+    notice_msg.numv = htonl(auction_num);   // Numéro de vente
+    notice_msg.prix = htonl(current_price); // Prix actuel
+    
+    if (send_msg_to(notice_msg, CODE | ID | NUMV | PRIX, 
+                  p_data->udp_sock, (struct sockaddr *)&auction_addr, 
+                  sizeof(auction_addr)) < 0) {
+        perror("Failed to send auction notice");
+        return -1;
+    }
+    
+    printf(" Sent first notice for auction #%u with current price %u\n", 
+           auction_num, current_price);
+    return 0;
+}
+
+void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr, 
+                           dyn_array *active_auctions) {
+    time_t current_time = time(NULL);
+    auction_info *auctions = (auction_info *)active_auctions->array;
+    int count = active_auctions->len / sizeof(auction_info);
+    
+    for (int i = 0; i < count; i++) {
+        // Vérifier uniquement les enchères actives dont ce pair est le superviseur
+        if (auctions[i].is_active && auctions[i].supervisor_id == ntohs(p_data->id)) {
+            time_t elapsed = current_time - auctions[i].last_activity;
+            
+            // Si t_3 secondes se sont écoulées depuis la dernière activité
+            if (elapsed >= T3_SECONDS) {
+                if (!auctions[i].notice_sent) {
+                    // Première notification (code 11)
+                    if (send_auction_notice(p_data, auction_addr, auctions[i].numv, 
+                                           auctions[i].current_price) == 0) {
+                        auctions[i].notice_sent = 1;
+                        auctions[i].last_activity = current_time;
+                    }
+                } else {
+                    // Deuxième notification et fin (code 12)
+                    // TODO: d) 2.
+                    printf("Oulala vérification pour la 2ème notification !\n");
+                }
+            }
+        }
+    }
+}
+
+void *auction_timer_thread(void *params) {
+    auction_handler_params *p = (auction_handler_params *)params;
+    pers_data *p_data = p->p_data;
+    struct sockaddr_in6 auction_addr = p->auction_addr;
+    dyn_array *active_auctions = p->active_auctions;
+    
+    while (1) {
+        // Vérification des enchères inactives
+        check_inactive_auctions(p_data, auction_addr, active_auctions);
+        sleep(5); // Vérification toutes les 5 secondes
+    }
+    
+    return NULL;
 }
 
 void *handle_auctions(void *params) {
@@ -201,8 +271,10 @@ void *handle_auctions(void *params) {
                             // Maj prix actuel et l'enchérisseur
                             auctions[i].current_price = bid_price;
                             auctions[i].current_bidder = bidder_id;
+                            auctions[i].last_activity = time(NULL);
+                            auctions[i].notice_sent = 0; // Réinitialisation car nouvelle activité
 
-                            // Rediff l'enchère avec le code 10 (validation)
+                            // Rediff l'enchère avec le code AUC_SUP_REDIFF (validation)
                             message relay_msg = msg;
                             relay_msg.code = AUC_SUP_REDIFF;
 
@@ -267,6 +339,8 @@ void *handle_auctions(void *params) {
                     if (auctions[i].numv == auction_num && auctions[i].is_active) {
                         auctions[i].current_price = bid_price;
                         auctions[i].current_bidder = bidder_id;
+                        auctions[i].last_activity = time(NULL);
+                        auctions[i].notice_sent = 0; 
                         break;
                     }
                 }

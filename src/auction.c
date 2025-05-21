@@ -119,6 +119,15 @@ int main(int argc, char const *argv[]) {
                                              .running = &running};
     if (pthread_create(&auction_thread, NULL, handle_auctions, &auction_params) < 0) goto error;
 
+    // Initialisation du thread de surveillance des enchères inactives
+    pthread_t auction_timer_thread_id;
+    if (pthread_create(&auction_timer_thread_id, NULL, auction_timer_thread, &auction_params) < 0) {
+        fprintf(stderr, "Failed to create auction timer thread\n");
+        // Continue même si le thread ne démarre pas (non critique?)
+    } else {
+        printf("Auction timer thread started\n");
+    }
+
     printf("\nAuction system initialized. Type 'help' for available commands.\n");
 
     // Interface user pour la gestion des enchères
@@ -175,6 +184,8 @@ int main(int argc, char const *argv[]) {
     // Nettoyage des ressources
     pthread_cancel(auction_thread);
     pthread_join(auction_thread, NULL);
+    pthread_cancel(auction_timer_thread_id);
+    pthread_join(auction_timer_thread_id, NULL);
     pthread_cancel(join_req_thread);
     pthread_join(join_req_thread, NULL);
     pthread_cancel(d_sharing_thread);

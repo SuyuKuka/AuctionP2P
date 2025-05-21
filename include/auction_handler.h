@@ -3,6 +3,7 @@
 
 #include <netinet/in.h>
 #include <stdint.h>
+#include <time.h>
 
 #include "collections.h"
 #include "protocol.h"
@@ -14,7 +15,11 @@ typedef struct auction_info {
     uint32_t current_price;  /* Prix actuel */
     uint16_t current_bidder; /* ID de l'enchérisseur actuel */
     int is_active;           /* Indicateur si l'enchère est active */
+    time_t last_activity;     /* Timestamp de la dernière activité */
+    int notice_sent;          /* Si la première notification a été envoyée */
 } auction_info;
+
+#define T3_SECONDS 15  // 15 secondes pour les tests, à modif
 
 /* Structure pour les paramètres du thread de gestion des enchères */
 typedef struct auction_handler_params {
@@ -69,6 +74,58 @@ int place_bid(const pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_
  * @param[in]   active_auctions Liste des enchères actives
  */
 void list_auctions(dyn_array *active_auctions);
+
+
+/**
+ * @brief Vérifie si l'enchère existe dans la liste des enchères.
+ *
+ * @param[in]   active_auctions Buffer.
+ * @param[in]   auction_num Message.
+ *
+ * @return `1` si elle existe, `0` sinon.
+ */
+int check_auction_exists(dyn_array *active_auctions, uint32_t auction_num);
+
+/**
+ * @brief Envoie une première notification de fin d'enchère
+ * 
+ * Cette fonction envoie un message avec le code 11 (AUC_NOTICE) pour notifier
+ * que le temps d'inactivité a dépassé t_3 secondes et que l'enchère pourrait
+ * bientôt se terminer.
+ * 
+ * @param p_data Pointeur vers les données personnelles du pair
+ * @param auction_addr Adresse multicast pour les messages d'enchères
+ * @param auction_num Numéro de l'enchère 
+ * @param current_price Prix actuel de l'enchère
+ * 
+ * @return 0 en cas de succès, -1 en cas d'erreur
+ */
+int send_auction_notice(pers_data *p_data, struct sockaddr_in6 auction_addr,
+                       uint32_t auction_num, uint32_t current_price);
+
+/**
+ * @brief Vérifie les enchères inactives et envoie des notifications
+ * 
+ * Cette fonction parcourt la liste des enchères actives et vérifie si
+ * certaines d'entre elles n'ont pas eu d'activité depuis t_3 secondes.
+ * Si oui, elle envoie une notification appropriée. -> rajouter pour d) 2.
+ * 
+ * @param p_data Pointeur vers les données personnelles du pair
+ * @param auction_addr Adresse multicast pour les messages d'enchères
+ * @param active_auctions Tableau dynamique contenant la liste des enchères actives
+ */
+void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr, 
+                           dyn_array *active_auctions);
+
+/**
+ * @brief Thread qui vérifie périodiquement les enchères inactives
+ * 
+ * Ce thread s'exécute en arrière-plan et vérifie périodiquement
+ * si certaines enchères sont inactives depuis trop longtemps.
+ * 
+ * @param params Pointeur vers auction_timer_params
+ */
+void *auction_timer_thread(void *params);
 
 /**
  * @brief Thread gérant les messages d'enchères.
