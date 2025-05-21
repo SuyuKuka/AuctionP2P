@@ -351,7 +351,7 @@ void *handle_auctions(void *params) {
             }
 
             case AUC_NOTICE: {  // TODO: Première notification de fin (11)
-                buf_to_msg(buffer, &msg, CODE | ID | NUMV);
+                buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
                 uint32_t auction_num = ntohl(msg.numv);
                 uint16_t supervisor_id = ntohs(msg.id);
                 uint32_t current_price = ntohl(msg.prix);
