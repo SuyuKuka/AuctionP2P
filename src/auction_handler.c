@@ -114,9 +114,8 @@ void *handle_auctions(void *params) {
     dyn_array *active_auctions = p->active_auctions;
     uint32_t *auction_counter = p->auction_counter;
     linked_list *peers = p->peers;
-    size_t nb_peers = peers->size;
 
-    printf("Starting auction handler with %zu peers\n", nb_peers);
+    printf("Starting auction handler with %zu peers\n", peers->size);
 
     // Création socket, listen les messages d'enchères
     int listen_sock = make_multicast_socket(auction_addr);
@@ -198,7 +197,7 @@ void *handle_auctions(void *params) {
                 auction_info *auctions = (auction_info *)active_auctions->array;
                 int count = active_auctions->len / sizeof(auction_info);
 
-                printf("%zu", nb_peers);
+                printf("%zu", peers->size);
 
                 for (int i = 0; i < count; i++) {
                     if (auctions[i].numv == auction_num &&
@@ -220,7 +219,7 @@ void *handle_auctions(void *params) {
                             } else {
                                 supervisor_wait_for_validation(p_data->udp_sock,
                                                                (struct sockaddr *)&auction_addr,
-                                                               nb_peers,
+                                                               peers->size,
                                                                &relay_msg,
                                                                auctions[i].supervisor_id);
                                 printf(" Validated new bid on auction #%u\n", auction_num);
