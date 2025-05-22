@@ -17,7 +17,7 @@ int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *
                  uint32_t initial_price, dyn_array *active_auctions) {
     (*counter)++;
 
-    // Utilisation directe du compteur comme numéro de vente
+    // Utilisation du compteur comme numéro de vente
     uint32_t auction_num = *counter;
 
     // Préparation du message d'initialisation de vente (code 8)
@@ -126,8 +126,6 @@ int send_auction_notice(pers_data *p_data, struct sockaddr_in6 auction_addr,
         return -1;
     }
     
-    printf("  Sent first notice for auction #%u with current price %u\n", 
-           auction_num, current_price);
     return 0;
 }
 
@@ -149,8 +147,6 @@ int send_auction_end(pers_data *p_data, struct sockaddr_in6 auction_addr,
         return -1;
     }
     
-    printf("  Auction #%u ended ! Won by peer %u with final price %u\n", 
-           auction_num, winner_id, final_price);
     return 0;
 }
 
@@ -284,7 +280,7 @@ void *handle_auctions(void *params) {
 
                 // Si l'enchère n'existe pas, on ignore le message.
                 if (!check_auction_exists(active_auctions, auction_num)) {
-                    printf(" Ignoring bid for non-existent auction #%u\n", auction_num);
+                    printf(" Ignoring bid for non-existent or finished auction #%u\n", auction_num);
                     break;
                 }
 
@@ -303,7 +299,7 @@ void *handle_auctions(void *params) {
                             auctions[i].current_price = bid_price;
                             auctions[i].current_bidder = bidder_id;
                             auctions[i].last_activity = time(NULL);
-                            auctions[i].notice_sent = 0; // Réinitialisation car nouvelle activité
+                            auctions[i].notice_sent = 0;
 
                             // Rediff l'enchère avec le code AUC_SUP_REDIFF (validation)
                             message relay_msg = msg;
@@ -384,7 +380,7 @@ void *handle_auctions(void *params) {
                 uint16_t supervisor_id = ntohs(msg.id);
                 uint32_t current_price = ntohl(msg.prix);
 
-                printf(" Notice of ending auction #%u from supervisor %u with current price at %u\n", 
+                printf(" First notice of ending auction #%u from supervisor %u with current price at %u\n", 
                         auction_num, supervisor_id, current_price);
 
                 // Mise à jour de l'état de l'enchère
