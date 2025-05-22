@@ -24,7 +24,7 @@ typedef struct auction_handler_params {
     dyn_array *active_auctions;       /* Liste des enchères actives */
     unsigned int *auction_counter;    /* Pointeur vers le compteur d'enchères */
     int *running;                     /* Si on doit ou non arrêter le thread */
-    linked_list *peers;               /* Adresses et clés des pairs */
+    linked_list peers;               /* Adresses et clés des pairs */
 } auction_handler_params;
 
 /**

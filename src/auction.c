@@ -117,7 +117,7 @@ int main(int argc, char const *argv[]) {
                                              .active_auctions = &active_auctions,
                                              .auction_counter = &auction_counter,
                                              .running = &running,
-                                             .peers = &peers};
+                                             .peers = peers};
     if (pthread_create(&auction_thread, NULL, handle_auctions, &auction_params) < 0) goto error;
 
     printf("\nAuction system initialized. Type 'help' for available commands.\n");
