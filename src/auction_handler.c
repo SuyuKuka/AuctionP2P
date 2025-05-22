@@ -217,7 +217,7 @@ void *handle_auctions(void *params) {
                             } else {
                                 supervisor_wait_for_validation(p_data->udp_sock,
                                                                (struct sockaddr *)&auction_addr,
-                                                               count,
+                                                               peers->size,
                                                                &relay_msg,
                                                                auctions[i].supervisor_id);
                                 printf(" Validated new bid on auction #%u\n", auction_num);
