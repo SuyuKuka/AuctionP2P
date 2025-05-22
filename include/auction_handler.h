@@ -6,6 +6,7 @@
 
 #include "collections.h"
 #include "protocol.h"
+#include "concensus.h"
 
 /* Structure d'une enchère */
 typedef struct auction_info {
