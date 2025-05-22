@@ -80,7 +80,7 @@ int handle_peers_data_sharing(struct sockaddr_in6 *auction_addr, linked_list *pe
  *
  * @return `id` si l'ID est unique, sinon un nouvel ID en /!\ big-endian.
  */
-int verify_id(linked_list peers, uint16_t pers_id, uint16_t id);
+int verify_id(linked_list *peers, uint16_t pers_id, uint16_t id);
 /**
  * @brief Envoi du message contenant la validité de l'ID. (`code = 50` ou `code = 51`).
  *
@@ -115,6 +115,31 @@ int send_peer_data_to_all_peers(const peer_data *peer, const linked_list *peers)
  */
 int send_all_peers_data_to_peer(const uint8_t *auction_ip, uint16_t auction_port,
                                 const linked_list *peers, pers_data p_data, const peer_data *peer);
+
+/**************************************************************************************************
+ *                                Méthodes sur la liste des pairs.                                *
+ **************************************************************************************************/
+
+int append_peer_data_to_list(linked_list *peers, uint16_t id, const uint8_t *ip, uint16_t port,
+                             const char *cle) {
+    peer_data *peer = malloc(sizeof(peer_data));
+    if (!peer) return -1;
+
+    peer->id = id;
+    peer->port = port;
+    memcpy(peer->ip, ip, sizeof(peer->ip));
+    memcpy(peer->cle, cle, sizeof(peer->cle));
+
+    node *peer_node = init_node();
+    if (!peer_node) {
+        free(peer);
+        return -1;
+    }
+    peer_node->data = peer;
+    append_to_list(peer_node, id, peers);
+
+    return 0;
+}
 
 /**************************************************************************************************
  *                       Méthode principale qui gère l'adhésion au système.                       *
@@ -183,19 +208,9 @@ int await_join_req_response(int sock, linked_list *peers) {
             if (msg.code == JOIN_REQ_RES) {
                 got_res = 1;
 
-                peer_data *peer = malloc(sizeof(peer_data));
-                if (!peer) continue;
-
-                peer->id = msg.id;
-                peer->port = msg.port;
-                memcpy(&peer->ip, &msg.ip, sizeof(peer->ip));
-                memset(peer->cle, 0, KEY_SIZE);
-
                 // Ajout des données du pair dans `peers`.
-                node *peer_node = init_node();
-                if (!peer_node) return -1;
-                peer_node->data = peer;
-                append_to_list(peer_node, peers);
+                if (append_peer_data_to_list(peers, msg.id, msg.ip, msg.port, msg.cle) < 0)
+                    continue;
 
                 // ===== DEBUG =====
                 peer_data *d = get_last_node(peers)->data;
@@ -351,19 +366,11 @@ int handle_peers_data_sharing(struct sockaddr_in6 *auction_addr, linked_list *pe
                    ntohs(msg.port));
         // ===== DEBUG =====
 
-        // Ajout dans le tableau.
-        peer_data *peer = malloc(sizeof(peer_data));
-        if (!peer) goto error;
+        // Ignore les infos du pair si déjà dans la liste.
+        if (!get_node(msg.id, peers)) continue;
 
-        peer->id = msg.id;
-        peer->port = msg.port;
-        memcpy(peer->ip, msg.ip, sizeof(peer->ip));
-        memcpy(peer->cle, msg.cle, sizeof(peer->cle));
-
-        node *peer_node = init_node();
-        if (!peer_node) goto error;
-        peer_node->data = peer;
-        append_to_list(peer_node, peers);
+        // Ajout des infos du pair dans la liste.
+        if (append_peer_data_to_list(peers, msg.id, msg.ip, msg.port, msg.cle) < 0) goto error;
     }
 
     close(peer_sock);
@@ -402,17 +409,13 @@ int handle_join_request(struct sockaddr_in6 addr, pers_data p_data) {
 int handle_info_sharing(int peer_sock, peer_data *peer, pers_data p_data, linked_list *peers,
                         struct sockaddr_in6 auction_addr) {
     // Vérification de l'ID.
-    int new_id = verify_id(*peers, p_data.id, peer->id);
+    int new_id = verify_id(peers, p_data.id, peer->id);
 
     // Réponse à l'expéditeur :
     if (send_id_validity(peer_sock, new_id, peer->id == new_id) < 0) return -1;
 
     // Ajout des données du pair dans `peers`.
-    node *peer_node = init_node();
-    if (!peer_node) return -1;
-    peer->id = new_id;
-    peer_node->data = peer;
-    append_to_list(peer_node, peers);
+    if (append_peer_data_to_list(peers, new_id, peer->ip, peer->port, peer->cle) < 0) return -1;
 
     // ===== DEBUG =====
     peer_data *d = get_last_node(peers)->data;
@@ -435,36 +438,12 @@ int handle_info_sharing(int peer_sock, peer_data *peer, pers_data p_data, linked
     return 0;
 
 error:
-    remove_from_list(peer_node->id, peers);
+    remove_from_list(new_id, peers);
     return -1;
 }
 
-int handle_info_sharing_to_all(peer_data *peer, linked_list *peers) {
-    // Ajout des données du pair dans `peers`.
-    node *peer_node = init_node();
-    if (!peer_node) return -1;
-    peer_node->data = peer;
-    append_to_list(peer_node, peers);
-
-    // ===== DEBUG =====
-    peer_data *d = get_last_node(peers)->data;
-    char ip_str[INET6_ADDRSTRLEN];
-    if (inet_ntop(AF_INET6, d->ip, ip_str, sizeof(ip_str)))
-        printf("[DEBUG] A peer shared data of peer %d of ip %s %d.\n", ntohs(d->id), ip_str,
-               ntohs(d->port));
-    // ===== DEBUG =====
-
-    return 0;
-}
-
-int verify_id(linked_list peers, uint16_t pers_id, uint16_t id) {
-    int exists = pers_id == id;
-    for (node *i = peers.head; i != NULL; i = i->next) {
-        if (((peer_data *)i->data)->id == id) {
-            exists = 1;
-            break;
-        }
-    }
+int verify_id(linked_list *peers, uint16_t pers_id, uint16_t id) {
+    int exists = pers_id == id || get_node(id, peers) != NULL;
     if (exists) id = htons(rand() % UINT16_MAX);
     return id;
 }
