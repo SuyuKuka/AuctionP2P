@@ -2,7 +2,6 @@
 #define DARRAY_H
 
 #include <stdlib.h>
-#include <pthread.h>
 
 /* Structure pour un tableau de taille variable. */
 typedef struct dyn_array {
@@ -22,7 +21,6 @@ typedef struct node {
 typedef struct linked_list {
     node *head;  /* Premier élément. */
     size_t size; /* Taille. */
-    pthread_mutex_t mutex; /* Mutex. */
 } linked_list;
 
 /**
@@ -72,12 +70,6 @@ int concat_to_array(dyn_array *arr, const void *data, size_t data_size);
  * @return `NULL` en cas d'erreur, le nouveau node sinon.
  */
 node *init_node();
-/**
- * @brief Initialise la liste chaînée.
- * 
- * @param[in,out]   list Liste.
- */
-void init_list(linked_list *list);
 /**
  * @brief Ajoute le node à la fin de la liste.
  *
