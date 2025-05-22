@@ -14,7 +14,7 @@ typedef struct dyn_array {
 typedef struct node {
     void *data;        /* Données. */
     struct node *next; /* Prochain élément. */
-    size_t id;         /* Identifiant */
+    int id;            /* Identifiant */
 } node;
 
 /* Structure pour un tableau de taille variable. */
@@ -74,16 +74,17 @@ node *init_node();
  * @brief Ajoute le node à la fin de la liste.
  *
  * @param[in,out]   n Tableau dynamique.
+ * @param[in]       node_id ID du node.
  * @param[in,out]   list Liste.
  */
-void append_to_list(node *n, linked_list *list);
+void append_to_list(node *n, int node_id, linked_list *list);
 /**
  * @brief Retire le node d'ID `id` de la liste.
  *
  * @param[in]       id Identifiant du node.
  * @param[in,out]   list Liste.
  */
-void remove_from_list(size_t id, linked_list *list);
+void remove_from_list(int id, linked_list *list);
 /**
  * @brief Renvoie le dernier node de la liste.
  *
@@ -91,11 +92,11 @@ void remove_from_list(size_t id, linked_list *list);
  */
 node *get_last_node(linked_list *list);
 /**
- * @brief Renvoie le node à la position `i`.
+ * @brief Renvoie le node avec l'id donné.
  *
- * @return `NULL` en cas d'erreur ou liste vide, le node sinon.
+ * @return `NULL` si non trouvé, le node sinon.
  */
-node *get_node(size_t i, linked_list *list);
+node *get_node(int id, linked_list *list);
 /**
  * @brief Libère la liste chaînée.
  */
