@@ -122,7 +122,7 @@ int send_auction_notice(pers_data *p_data, struct sockaddr_in6 auction_addr,
     if (send_msg_to(notice_msg, CODE | ID | NUMV | PRIX, 
                   p_data->udp_sock, (struct sockaddr *)&auction_addr, 
                   sizeof(auction_addr)) < 0) {
-        perror("Failed to send auction notice");
+        fprintf(stderr, "Failed to send auction notice\n");
         return -1;
     }
     
@@ -145,7 +145,7 @@ int send_auction_end(pers_data *p_data, struct sockaddr_in6 auction_addr,
     if (send_msg_to(end_msg, CODE | ID | NUMV | PRIX, 
                   p_data->udp_sock, (struct sockaddr *)&auction_addr, 
                   sizeof(auction_addr)) < 0) {
-        perror("Failed to send auction end notification");
+        fprintf(stderr, "Failed to send auction end notification\n");
         return -1;
     }
     
