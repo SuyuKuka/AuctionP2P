@@ -203,7 +203,6 @@ void *handle_auctions(void *params) {
                 for (int i = 0; i < count; i++) {
                     if (auctions[i].numv == auction_num &&
                         auctions[i].supervisor_id == ntohs(p_data->id) && auctions[i].is_active) {
-                        printf("ID SUPERVISEUR? : %u", auctions[i].supervisor_id);
                         // Check si l'enchère est valide
                         if (bid_price > auctions[i].current_price) {
                             // Maj prix actuel et l'enchérisseur

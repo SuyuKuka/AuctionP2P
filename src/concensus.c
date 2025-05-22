@@ -11,6 +11,8 @@
 int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_peers, message *mess, uint16_t supervisor_id) {
     size_t count = 0;
     message msg;
+    // TODO: fix nb_peers
+    nb_peers = 2;
     printf("[INFO] Waiting for %zu validation(s)...\n", nb_peers);
 
     struct sockaddr_in src_addr;
@@ -19,22 +21,34 @@ int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_pe
     while (count < nb_peers) {
         memset(&msg, 0, sizeof(msg));
 
+        // Le superviseur attend les messages de validations
         if (recv_msg_from(&msg, CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG, sock,
                           (struct sockaddr *)&src_addr, &len) < 0) {
             perror("[ERROR] recv_msg_from");
             continue;
         }
 
+        // Si c’est une validation pour la bonne enchère
         if (msg.code == 1 && msg.numv == mess->numv) {
             printf("[DEBUG] Received validation from peer ID %d\n", ntohs(msg.id));
             count++;
-        } else {
-            printf("[WARN] Wrong message code or auction number: code=%d, numv=%d\n", msg.code, ntohl(msg.numv));
+        }
+
+        // Si c’est une validation pour une autre enchère, on l’ignore proprement
+        else if (msg.code == 1 && msg.numv != mess->numv) {
+            printf("[INFO] Ignored validation for another auction (numv=%d)\n", ntohl(msg.numv));
+        }
+
+        // Sinon, c’est une erreur ou un message inattendu
+        else {
+            printf("[WARN] Wrong message received: code=%d, numv=%d\n", msg.code, ntohl(msg.numv));
         }
     }
 
+    // Toutes les validations sont bien arrivé
     printf("[INFO] All %zu validation(s) received successfully.\n", nb_peers);
 
+    // Créer le message de validation.
     message validation_msg;
     memset(&validation_msg, 0, sizeof(validation_msg));
     validation_msg.code = 2;
@@ -47,11 +61,12 @@ int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_pe
     validation_msg.sig = "superviseur";
     validation_msg.nb = count;
 
-    // if (send_msg_to(validation_msg, CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG | NB,
-    //                 sock, addr, sizeof(struct sockaddr_in)) < 0) {
-    //     perror("[ERROR] send_msg_to");
-    //     return -1;
-    // }
+    // Multidiffuse le message avec le code 2
+    if (send_msg_to(validation_msg, CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG | NB,
+                    sock, addr, sizeof(struct sockaddr_in)) < 0) {
+        perror("[ERROR] send_msg_to");
+        return -1;
+    }
 
     return 0;
 }
