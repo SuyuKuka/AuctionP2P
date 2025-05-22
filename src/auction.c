@@ -38,11 +38,14 @@ int main(int argc, char const *argv[]) {
     struct sockaddr_in6 linking_addr;   // Adresse de liaison.
     struct sockaddr_in6 auction_addr;   // Adresse d'enchères.
     struct sockaddr_in6 personal_addr;  // Adresse personnelle.
-    linked_list peers;                  // Adresses et clés des pairs.
+    linked_list *peers;                 // Adresses et clés des pairs.
     pers_data p_data;                   // Données personnelles.
     int running = 1;                    // Pour savoir si le pair a quitté ou non le système.
     unsigned int auction_counter = 0;   // Compteur des ventes initiées.
     dyn_array active_auctions;          // Liste des ventes actives.
+
+    peers = malloc(sizeof(peers));
+    if (!peers) goto error;
 
     memset(&peers, 0, sizeof(peers));
     memset(&p_data, 0, sizeof(p_data));
@@ -137,7 +140,7 @@ int main(int argc, char const *argv[]) {
         }
 
         // Extraction de la cmd
-        if (sscanf(input, "%s", cmd) != 1) {
+        if (sscanf(input, "%4s", cmd) != 1) {
             continue;
         }
 
@@ -184,7 +187,7 @@ int main(int argc, char const *argv[]) {
     close(udp_serv_sock);
     close(tcp_serv_sock);
     close(linking_subs_sock);
-    free_list(&peers);
+    free_list(peers);
     free_dyn_array(active_auctions);
     return EXIT_SUCCESS;
 
@@ -193,7 +196,7 @@ error:
     if (udp_serv_sock) close(udp_serv_sock);
     if (tcp_serv_sock) close(tcp_serv_sock);
     if (linking_subs_sock) close(linking_subs_sock);
-    free_list(&peers);
+    free_list(peers);
     free_dyn_array(active_auctions);
     return EXIT_FAILURE;
 }
