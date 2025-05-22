@@ -21,7 +21,7 @@ int send_join_request(int sock, struct sockaddr_in6 linking_addr);
 /**
  * @brief Gère les réponses de la part des autres pairs suite à la demande initiale (`code = 4`).
  *
- * @param[in]       sock Socket serveur TCP.
+ * @param[in]       sock Socket serveur UDP.
  * @param[in,out]   peers Adresses et clés des pairs.
  *
  * @return `-1` en cas d'erreur, `0` s'il n'y a pas eu de réponse, `1` sinon.
@@ -100,7 +100,7 @@ int send_id_validity(int sock, int id, int validity);
  *
  * @return `-1` en cas d'erreur, `0` sinon.
  */
-int send_peer_data_to_all_peers(peer_data peer, linked_list *peers);
+int send_peer_data_to_all_peers(const peer_data *peer, const linked_list *peers);
 /**
  * @brief Envoi de l'en-tête, contenant l'adresse d'enchères, et des infos des autres pairs du
  * système au pair demandant l'adhésion au système. (`code = 7`).
@@ -114,7 +114,7 @@ int send_peer_data_to_all_peers(peer_data peer, linked_list *peers);
  * @return `-1` en cas d'erreur, `0` sinon.
  */
 int send_all_peers_data_to_peer(const uint8_t *auction_ip, uint16_t auction_port,
-                                linked_list *peers, pers_data p_data, peer_data peer);
+                                const linked_list *peers, pers_data p_data, const peer_data *peer);
 
 /**************************************************************************************************
  *                       Méthode principale qui gère l'adhésion au système.                       *
@@ -399,19 +399,19 @@ int handle_join_request(struct sockaddr_in6 addr, pers_data p_data) {
     return 0;
 }
 
-int handle_info_sharing(int peer_sock, peer_data peer, pers_data p_data, linked_list *peers,
+int handle_info_sharing(int peer_sock, peer_data *peer, pers_data p_data, linked_list *peers,
                         struct sockaddr_in6 auction_addr) {
     // Vérification de l'ID.
-    int new_id = verify_id(*peers, p_data.id, peer.id);
+    int new_id = verify_id(*peers, p_data.id, peer->id);
 
     // Réponse à l'expéditeur :
-    if (send_id_validity(peer_sock, new_id, peer.id == new_id) < 0) return -1;
+    if (send_id_validity(peer_sock, new_id, peer->id == new_id) < 0) return -1;
 
     // Ajout des données du pair dans `peers`.
     node *peer_node = init_node();
     if (!peer_node) return -1;
-    peer.id = new_id;
-    peer_node->data = &peer;
+    peer->id = new_id;
+    peer_node->data = peer;
     append_to_list(peer_node, peers);
 
     // ===== DEBUG =====
@@ -439,11 +439,11 @@ error:
     return -1;
 }
 
-int handle_info_sharing_to_all(peer_data peer, linked_list *peers) {
+int handle_info_sharing_to_all(peer_data *peer, linked_list *peers) {
     // Ajout des données du pair dans `peers`.
     node *peer_node = init_node();
     if (!peer_node) return -1;
-    peer_node->data = &peer;
+    peer_node->data = peer;
     append_to_list(peer_node, peers);
 
     // ===== DEBUG =====
@@ -482,16 +482,16 @@ int send_id_validity(int sock, int id, int validity) {
     return 0;
 }
 
-int send_peer_data_to_all_peers(peer_data peer, linked_list *peers) {
+int send_peer_data_to_all_peers(const peer_data *peer, const linked_list *peers) {
     printf("[DEBUG] Sharing peer's info to all...\n");
 
     message msg;
     memset(&msg, 0, sizeof(msg));
     msg.code = JOIN_SHARE_INFO_TO_ALL;
-    msg.id = peer.id;
-    memcpy(msg.ip, peer.ip, sizeof(msg.ip));
-    msg.port = peer.port;
-    memcpy(msg.cle, peer.cle, sizeof(msg.cle));
+    msg.id = peer->id;
+    memcpy(msg.ip, peer->ip, sizeof(msg.ip));
+    msg.port = peer->port;
+    memcpy(msg.cle, peer->cle, sizeof(msg.cle));
 
     int msg_flags = CODE | ID | IP | PORT | CLE;
     size_t m_size = msg_size(msg_flags);
@@ -501,7 +501,7 @@ int send_peer_data_to_all_peers(peer_data peer, linked_list *peers) {
 
     for (node *n = peers->head; n != NULL; n = n->next) {
         const peer_data *other_peer = n->data;
-        if (other_peer->id == peer.id) continue;
+        if (other_peer->id == peer->id) continue;
 
         struct sockaddr_in6 addr;
         memset(&addr, 0, sizeof(addr));
@@ -549,7 +549,7 @@ error:
 }
 
 int send_all_peers_data_to_peer(const uint8_t *auction_ip, uint16_t auction_port,
-                                linked_list *peers, pers_data p_data, peer_data peer) {
+                                const linked_list *peers, pers_data p_data, const peer_data *peer) {
     printf("[DEBUG] Sharing auction address and other peers info to peer...\n");
 
     message msg;
@@ -569,8 +569,8 @@ int send_all_peers_data_to_peer(const uint8_t *auction_ip, uint16_t auction_port
     struct sockaddr_in6 addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin6_family = AF_INET6;
-    memcpy(&addr.sin6_addr.s6_addr, peer.ip, sizeof(addr.sin6_addr.s6_addr));
-    addr.sin6_port = peer.port;
+    memcpy(&addr.sin6_addr.s6_addr, peer->ip, sizeof(addr.sin6_addr.s6_addr));
+    addr.sin6_port = peer->port;
 
     // Socket TCP.
     int sock = socket(PF_INET6, SOCK_STREAM, 0);
@@ -598,7 +598,7 @@ int send_all_peers_data_to_peer(const uint8_t *auction_ip, uint16_t auction_port
     printf("[DEBUG] Sharing %zu other peers info to peer...\n", peers->size - 1);
     for (node *n = peers->head; n != NULL; n = n->next) {
         const peer_data *other_peer = n->data;
-        if (other_peer->id == peer.id) continue;
+        if (other_peer->id == peer->id) continue;
 
         // On vide le message et le buffer.
         memset(&msg, 0, sizeof(msg));
