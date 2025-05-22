@@ -367,7 +367,7 @@ int handle_peers_data_sharing(struct sockaddr_in6 *auction_addr, linked_list *pe
         // ===== DEBUG =====
 
         // Ignore les infos du pair si déjà dans la liste.
-        if (!get_node(msg.id, peers)) continue;
+        if (get_node(msg.id, peers)) continue;
 
         // Ajout des infos du pair dans la liste.
         if (append_peer_data_to_list(peers, msg.id, msg.ip, msg.port, msg.cle) < 0) goto error;
