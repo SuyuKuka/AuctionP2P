@@ -119,6 +119,7 @@ int main(int argc, char const *argv[]) {
                                              .auction_addr = auction_addr,
                                              .active_auctions = &active_auctions,
                                              .auction_counter = &auction_counter,
+                                             .peers = &peers,
                                              .running = &running};
     if (pthread_create(&auction_thread, NULL, handle_auctions, &auction_params) < 0) goto error;
 

@@ -113,6 +113,7 @@ void *handle_auctions(void *params) {
     struct sockaddr_in6 auction_addr = p->auction_addr;
     dyn_array *active_auctions = p->active_auctions;
     uint32_t *auction_counter = p->auction_counter;
+    linked_list *peers = p->peers;
 
     // Création socket, listen les messages d'enchères
     int listen_sock = make_multicast_socket(auction_addr);
@@ -183,6 +184,8 @@ void *handle_auctions(void *params) {
                 uint32_t auction_num = ntohl(msg.numv);
                 uint32_t bid_price = ntohl(msg.prix);
                 uint16_t bidder_id = ntohs(msg.id);
+
+                printf("%zu", peers->size);
 
                 // Si l'enchère n'existe pas, on ignore le message.
                 if (!check_auction_exists(active_auctions, auction_num)) break;
