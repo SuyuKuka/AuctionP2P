@@ -54,7 +54,14 @@ node *init_node() {
     return n;
 }
 
+void init_list(linked_list *list) {
+    list->head = NULL;
+    list->size = 0;
+    pthread_mutex_init(&list->mutex, NULL);
+}
+
 void append_to_list(node *n, int node_id, linked_list *list) {
+    pthread_mutex_lock(&list->mutex);
     if (list->head == NULL) {
         list->head = n;
     } else {
@@ -64,6 +71,7 @@ void append_to_list(node *n, int node_id, linked_list *list) {
     }
     n->id = node_id;
     list->size++;
+    pthread_mutex_unlock(&list->mutex);
 }
 
 void remove_from_list(int id, linked_list *list) {

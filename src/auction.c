@@ -44,7 +44,7 @@ int main(int argc, char const *argv[]) {
     unsigned int auction_counter = 0;   // Compteur des ventes initiées.
     dyn_array active_auctions;          // Liste des ventes actives.
 
-    memset(&peers, 0, sizeof(peers));
+    init_list(&peers);
     memset(&p_data, 0, sizeof(p_data));
     init_dyn_array(&active_auctions, sizeof(auction_info));
 
@@ -130,9 +130,10 @@ int main(int argc, char const *argv[]) {
         memset(input, 0, sizeof(input));
         memset(cmd, 0, sizeof(cmd));
         fflush(stdout);
+        pthread_mutex_lock(&peers.mutex);
         printf("NOMBRE DE PAIRS CONNECTÉS: %zu", peers.size);
+        pthread_mutex_unlock(&peers.mutex);
         printf("> ");
-
 
         // Obtenir la cmd de l'user
         if (fgets(input, sizeof(input), stdin) == NULL) {
@@ -176,6 +177,7 @@ int main(int argc, char const *argv[]) {
     }
 
     // Nettoyage des ressources
+    pthread_mutex_destroy(&peers.mutex);
     pthread_cancel(auction_thread);
     pthread_join(auction_thread, NULL);
     pthread_cancel(join_req_thread);
