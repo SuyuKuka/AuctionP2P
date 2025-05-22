@@ -130,7 +130,6 @@ int main(int argc, char const *argv[]) {
         memset(cmd, 0, sizeof(cmd));
         fflush(stdout);
         printf("> ");
-        printf("NOMBRE DE PERSONNES CONNECTÉES: %ld\n", peers.size);
 
         // Obtenir la cmd de l'user
         if (fgets(input, sizeof(input), stdin) == NULL) {
