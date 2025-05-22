@@ -21,7 +21,7 @@ int send_join_request(int sock, struct sockaddr_in6 linking_addr);
 /**
  * @brief Gère les réponses de la part des autres pairs suite à la demande initiale (`code = 4`).
  *
- * @param[in]       sock Socket serveur TCP.
+ * @param[in]       sock Socket serveur UDP.
  * @param[in,out]   peers Adresses et clés des pairs.
  *
  * @return `-1` en cas d'erreur, `0` s'il n'y a pas eu de réponse, `1` sinon.

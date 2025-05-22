@@ -30,12 +30,6 @@ int make_udp_receiver_socket(uint16_t port) {
         goto error;
     }
 
-    int reuse = 1;
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-        perror("[ERROR] setsockopt SO_REUSEADDR");
-        goto error;
-    }
-
     struct sockaddr_in6 s_addr;
     memset(&s_addr, 0, sizeof(s_addr));
     s_addr.sin6_family = AF_INET6;
@@ -114,12 +108,6 @@ int make_tcp_server_socket(int port) {
         goto error;
     }
 
-    int reuse = 1;
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-        perror("[ERROR] setsockopt SO_REUSEADDR");
-        goto error;
-    }
-
     struct sockaddr_in6 addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin6_family = AF_INET6;
@@ -147,12 +135,6 @@ int make_udp_socket() {
     int sock = socket(AF_INET6, SOCK_DGRAM, 0);
     if ((sock) < 0) {
         perror("[ERROR] socket");
-        goto error;
-    }
-
-    int reuse = 1;
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-        perror("[ERROR] setsockopt SO_REUSEADDR");
         goto error;
     }
 
