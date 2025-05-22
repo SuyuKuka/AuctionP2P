@@ -116,8 +116,8 @@ int main(int argc, char const *argv[]) {
                                              .auction_addr = auction_addr,
                                              .active_auctions = &active_auctions,
                                              .auction_counter = &auction_counter,
-                                             .running = &running,
-                                             .peers = peers};
+                                             .peers = &peers,
+                                             .running = &running};
     if (pthread_create(&auction_thread, NULL, handle_auctions, &auction_params) < 0) goto error;
 
     printf("\nAuction system initialized. Type 'help' for available commands.\n");
@@ -130,7 +130,9 @@ int main(int argc, char const *argv[]) {
         memset(input, 0, sizeof(input));
         memset(cmd, 0, sizeof(cmd));
         fflush(stdout);
+        printf("NOMBRE DE PAIRS CONNECTÉS: %zu", peers.size);
         printf("> ");
+
 
         // Obtenir la cmd de l'user
         if (fgets(input, sizeof(input), stdin) == NULL) {

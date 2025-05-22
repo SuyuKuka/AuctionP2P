@@ -8,15 +8,15 @@
 
 // gere qu'un seul auction, l'adapté pour qu'il puisse en faire plusieurs
 // sock udp pour multidiffuser
-int supervisor_wait_for_validation(int sock, struct sockaddr *addr, int total_validation_msg, message *mess, uint16_t supervisor_id) {
-    int count = 0;
+int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_peers, message *mess, uint16_t supervisor_id) {
+    size_t count = 0;
     message msg;
-    printf("[INFO] Waiting for %d validation(s)...\n", total_validation_msg);
+    printf("[INFO] Waiting for %zu validation(s)...\n", nb_peers);
 
     struct sockaddr_in src_addr;
     socklen_t len = sizeof(src_addr);
 
-    while (count < total_validation_msg) {
+    while (count < nb_peers) {
         memset(&msg, 0, sizeof(msg));
 
         if (recv_msg_from(&msg, CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG, sock,
@@ -33,7 +33,7 @@ int supervisor_wait_for_validation(int sock, struct sockaddr *addr, int total_va
         }
     }
 
-    printf("[INFO] All %d validation(s) received successfully.\n", total_validation_msg);
+    printf("[INFO] All %zu validation(s) received successfully.\n", nb_peers);
 
     message validation_msg;
     memset(&validation_msg, 0, sizeof(validation_msg));
@@ -47,11 +47,11 @@ int supervisor_wait_for_validation(int sock, struct sockaddr *addr, int total_va
     validation_msg.sig = "superviseur";
     validation_msg.nb = count;
 
-    if (send_msg_to(validation_msg, CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG | NB,
-                    sock, addr, sizeof(struct sockaddr_in)) < 0) {
-        perror("[ERROR] send_msg_to");
-        return -1;
-    }
+    // if (send_msg_to(validation_msg, CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG | NB,
+    //                 sock, addr, sizeof(struct sockaddr_in)) < 0) {
+    //     perror("[ERROR] send_msg_to");
+    //     return -1;
+    // }
 
     return 0;
 }
