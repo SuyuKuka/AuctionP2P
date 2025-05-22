@@ -130,7 +130,6 @@ int main(int argc, char const *argv[]) {
         memset(input, 0, sizeof(input));
         memset(cmd, 0, sizeof(cmd));
         fflush(stdout);
-        printf("NOMBRE DE PAIRS CONNECTÉS: %zu", peers.size);
         printf("> ");
 
         // Obtenir la cmd de l'user

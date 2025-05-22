@@ -12,7 +12,6 @@ int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_pe
     size_t count = 0;
     message msg;
     // TODO: fix nb_peers
-    nb_peers = 2;
     printf("[INFO] Waiting for %zu validation(s)...\n", nb_peers);
 
     struct sockaddr_in src_addr;

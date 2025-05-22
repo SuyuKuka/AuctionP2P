@@ -197,8 +197,6 @@ void *handle_auctions(void *params) {
                 auction_info *auctions = (auction_info *)active_auctions->array;
                 int count = active_auctions->len / sizeof(auction_info);
 
-                printf("%zu", peers->size);
-
                 for (int i = 0; i < count; i++) {
                     if (auctions[i].numv == auction_num &&
                         auctions[i].supervisor_id == ntohs(p_data->id) && auctions[i].is_active) {
