@@ -124,6 +124,29 @@ int send_auction_notice(pers_data *p_data, struct sockaddr_in6 auction_addr,
     return 0;
 }
 
+int send_auction_end(pers_data *p_data, struct sockaddr_in6 auction_addr,
+                    uint32_t auction_num, uint32_t final_price, uint16_t winner_id) {
+    // Préparation du message de fin d'enchère (code 12)
+    message end_msg;
+    memset(&end_msg, 0, sizeof(message));
+    
+    end_msg.code = AUC_END;             // CODE = 12
+    end_msg.id = htons(winner_id);      // ID du gagnant
+    end_msg.numv = htonl(auction_num);  // Numéro de vente
+    end_msg.prix = htonl(final_price);  // Prix final
+    
+    if (send_msg_to(end_msg, CODE | ID | NUMV | PRIX, 
+                  p_data->udp_sock, (struct sockaddr *)&auction_addr, 
+                  sizeof(auction_addr)) < 0) {
+        perror("Failed to send auction end notification");
+        return -1;
+    }
+    
+    printf("  Auction #%u ended ! Won by peer %u with final price %u\n", 
+           auction_num, winner_id, final_price);
+    return 0;
+}
+
 void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr, 
                            dyn_array *active_auctions) {
     time_t current_time = time(NULL);
@@ -146,8 +169,13 @@ void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr
                     }
                 } else {
                     // Deuxième notification et fin (code 12)
-                    // TODO: d) 2.
-                    printf("  Oulala vérification pour la 2ème notification !\n");
+                    if (elapsed >= 2 * T3_SECONDS) {    // Si t_3 secondes en plus écoulées (depuis code 11)
+                        if (send_auction_end(p_data, auction_addr, auctions[i].numv, 
+                                           auctions[i].current_price, auctions[i].current_bidder) == 0) {
+                            auctions[i].is_active = 0;  // Enchère marquée comme terminée
+                            printf(" Auction #%u has been closed\n", auctions[i].numv);
+                        }
+                    }
                 }
             }
         }
@@ -365,7 +393,7 @@ void *handle_auctions(void *params) {
                 break;
             }
 
-            case AUC_END: {  // TODO: Fin de la vente (12)
+            case AUC_END: {  // Deuxième notification et fin de vente (12)
                 buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
                 uint32_t auction_num = ntohl(msg.numv);
                 uint32_t final_price = ntohl(msg.prix);
@@ -373,6 +401,8 @@ void *handle_auctions(void *params) {
 
                 printf(" Auction #%u ended, won by peer %u with final price %u\n", auction_num,
                        winner_id, final_price);
+
+                // Voir si TODO: implémentation du processus de consensus ici ?
 
                 // Marquer l'enchère comme finie dans la liste
                 auction_info *auctions = (auction_info *)active_auctions->array;

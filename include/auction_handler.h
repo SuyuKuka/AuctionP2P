@@ -103,6 +103,23 @@ int send_auction_notice(pers_data *p_data, struct sockaddr_in6 auction_addr,
                        uint32_t auction_num, uint32_t current_price);
 
 /**
+ * @brief Envoie la notification finale de fin d'enchère
+ * 
+ * Cette fonction envoie un message avec le code 12 (AUC_END) pour notifier
+ * la fin de l'enchère après un second délai de t_3 secondes sans activité.
+ * 
+ * @param p_data Pointeur vers les données personnelles du pair
+ * @param auction_addr Adresse multicast pour les messages d'enchères
+ * @param auction_num Numéro de l'enchère 
+ * @param final_price Prix final de l'enchère
+ * @param winner_id ID du gagnant de l'enchère
+ * 
+ * @return 0 en cas de succès, -1 en cas d'erreur
+ */
+int send_auction_end(pers_data *p_data, struct sockaddr_in6 auction_addr,
+                    uint32_t auction_num, uint32_t final_price, uint16_t winner_id);
+
+/**
  * @brief Vérifie les enchères inactives et envoie des notifications
  * 
  * Cette fonction parcourt la liste des enchères actives et vérifie si
