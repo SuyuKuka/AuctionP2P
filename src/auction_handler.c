@@ -43,6 +43,7 @@ int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *
     new_auction.current_bidder = ntohs(p_data->id);
     new_auction.is_active = 1;
     new_auction.last_activity = time(NULL);
+    new_auction.first_notice_time = 0;
     new_auction.notice_sent = 0;
 
     if (concat_to_array(active_auctions, &new_auction, sizeof(auction_info)) < 0) {
@@ -83,12 +84,18 @@ void list_auctions(dyn_array *active_auctions) {
 
     const auction_info *auctions = (auction_info *)active_auctions->array;
     int count = active_auctions->len / sizeof(auction_info);
+    int active_count = 0;
 
     for (int i = 0; i < count; i++) {
         if (auctions[i].is_active) {
             printf("   Auction #%u: current price %u (last bidder: %u)\n", auctions[i].numv,
                    auctions[i].current_price, auctions[i].current_bidder);
+            active_count++;
         }
+    }
+
+    if (active_count == 0) {
+        printf(" No active auctions\n");
     }
 }
 
@@ -96,7 +103,7 @@ int check_auction_exists(dyn_array *active_auctions, uint32_t auction_num) {
     const auction_info *auctions = (auction_info *)active_auctions->array;
     int count = active_auctions->len / sizeof(auction_info);
     for (int i = 0; i < count; i++) {
-        if (auctions[i].numv == auction_num) return 1;
+        if (auctions[i].numv == auction_num && auctions[i].is_active) return 1;
     }
     return 0;
 }
@@ -165,15 +172,15 @@ void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr
                     if (send_auction_notice(p_data, auction_addr, auctions[i].numv, 
                                            auctions[i].current_price) == 0) {
                         auctions[i].notice_sent = 1;
-                        auctions[i].last_activity = current_time;
+                        auctions[i].first_notice_time = current_time;
                     }
                 } else {
                     // Deuxième notification et fin (code 12)
-                    if (elapsed >= 2 * T3_SECONDS) {    // Si t_3 secondes en plus écoulées (depuis code 11)
+                    time_t elapsed_since_notice = current_time - auctions[i].first_notice_time;
+                    if (elapsed_since_notice >= T3_SECONDS) {
                         if (send_auction_end(p_data, auction_addr, auctions[i].numv, 
                                            auctions[i].current_price, auctions[i].current_bidder) == 0) {
                             auctions[i].is_active = 0;  // Enchère marquée comme terminée
-                            printf(" Auction #%u has been closed\n", auctions[i].numv);
                         }
                     }
                 }
@@ -255,6 +262,7 @@ void *handle_auctions(void *params) {
                 new_auction.supervisor_id = peer_id;
                 new_auction.current_price = price;
                 new_auction.current_bidder = peer_id;
+                new_auction.first_notice_time = 0;
                 new_auction.is_active = 1;
 
                 if (concat_to_array(active_auctions, &new_auction, sizeof(auction_info)) < 0) {

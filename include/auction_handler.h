@@ -16,6 +16,7 @@ typedef struct auction_info {
     uint16_t current_bidder;    /* ID de l'enchérisseur actuel */
     int is_active;              /* Indicateur si l'enchère est active */
     time_t last_activity;       /* Timestamp de la dernière activité */
+    time_t first_notice_time;   /* Timestamp de la première notification */
     int notice_sent;            /* Si la première notification a été envoyée */
 } auction_info;
 
