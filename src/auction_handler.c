@@ -263,8 +263,8 @@ void *handle_auctions(void *params) {
                        auction_num, bidder_id);
 
                 // TODO: processus de consensus ici, post code 10
-                // int count = active_auctions->len / sizeof(auction_info);
-                send_validation_to_supervisor(p_data->udp_sock, (struct sockaddr *)&auction_addr, &msg);
+                printf(" Processus de consensus ici, post code 10\n");
+                // send_validation_to_supervisor(p_data->udp_sock, (struct sockaddr *)&auction_addr, &msg);
 
                 // Maj prix actuel dans la liste de ventes
                 auction_info *auctions = (auction_info *)active_auctions->array;
