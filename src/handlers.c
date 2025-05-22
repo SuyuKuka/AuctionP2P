@@ -75,11 +75,14 @@ void *handle_tcp(void *arg) {
     while (*args->running) {
         memset(&msg, 0, sizeof(msg));
 
+        peer_data *peer = malloc(sizeof(peer_data));
+        if (peer == NULL) continue;
+
         // Accepte la connexion.
         int peer_sock = accept(p_data.tcp_serv_sock, NULL, NULL);
         if (peer_sock < 0) {
             perror("[ERROR] accept");
-            continue;
+            goto error;
         }
 
         printf("[DEBUG] A peer has connected over TCP.\n");
@@ -90,23 +93,22 @@ void *handle_tcp(void *arg) {
         uint8_t code;
         if (read_nb(peer_sock, &code, sizeof(msg.code), MILLI(5)) < 0) goto error;
 
-        peer_data peer;
         switch (code) {
             case JOIN_SHARE_INFO:
                 if (read_msg(peer_sock, &msg, ID | IP | PORT | CLE, MILLI(5)) < 0) goto error;
-                peer.id = msg.id;
-                peer.port = msg.port;
-                memcpy(&peer.ip, &msg.ip, sizeof(peer.ip));
-                memcpy(&peer.cle, &msg.cle, sizeof(peer.cle));
+                peer->id = msg.id;
+                peer->port = msg.port;
+                memcpy(&peer->ip, &msg.ip, sizeof(peer->ip));
+                memcpy(&peer->cle, &msg.cle, sizeof(peer->cle));
 
                 handle_info_sharing(peer_sock, peer, p_data, peers, auction_addr);
                 break;
             case JOIN_SHARE_INFO_TO_ALL:
                 if (read_msg(peer_sock, &msg, ID | IP | PORT | CLE, MILLI(5)) < 0) goto error;
-                peer.id = msg.id;
-                peer.port = msg.port;
-                memcpy(&peer.ip, &msg.ip, sizeof(peer.ip));
-                memcpy(&peer.cle, &msg.cle, sizeof(peer.cle));
+                peer->id = msg.id;
+                peer->port = msg.port;
+                memcpy(&peer->ip, &msg.ip, sizeof(peer->ip));
+                memcpy(&peer->cle, &msg.cle, sizeof(peer->cle));
 
                 handle_info_sharing_to_all(peer, peers);
                 break;
@@ -115,7 +117,11 @@ void *handle_tcp(void *arg) {
                 break;
         }
 
+        close(peer_sock);
+        continue;
+
     error:
+        free(peer);
         close(peer_sock);
     }
 
