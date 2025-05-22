@@ -258,6 +258,14 @@ void *handle_auctions(void *params) {
                        auction_num, bidder_id);
 
                 // TODO: processus de consensus ici, post code 10
+                send_msg_to(
+                    &msg,
+                    CODE | ID | NUMV | PRIX,
+                    p_data->udp_sock,
+                    (struct sockaddr *)&auction_addr,
+                    sizeof(auction_addr),
+                );
+                supervisor_wait_for_validation(p_data->udp_sock, (struct sockaddr *)&auction_addrs, getTotalPeers(p_data), &msg)
 
                 // Maj prix actuel dans la liste de ventes
                 auction_info *auctions = (auction_info *)active_auctions->array;
