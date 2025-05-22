@@ -37,15 +37,20 @@ int handle_join_request(struct sockaddr_in6 addr, pers_data p_data);
 /**
  * @brief Gère la demande de partage d'infos personnelles des pairs du système au pair `peer`.
  *
- * @param[in]   params Structure `data_sharing_params`.
+ * @param[in]       peer_sock Socket du pair.
+ * @param[in,out]   peer Informations du pair.
+ * @param[in]       p_data Données personnelles.
+ * @param[in,out]   peers Liste des pairs.
+ * @param[in]       auction_addr Adresse d'enchères.
  */
-int handle_info_sharing(int peer_sock, peer_data peer, pers_data p_data, linked_list *peers,
+int handle_info_sharing(int peer_sock, peer_data *peer, pers_data p_data, linked_list *peers,
                         struct sockaddr_in6 auction_addr);
 /**
  * @brief Gère le partage des infos personnelles d'un pair aux autres pairs du système.
  *
- * @param[in]   params Structure `data_sharing_params`.
+ * @param[in]       peer Structure `data_sharing_params`.
+ * @param[in,out]   peers Structure `data_sharing_params`.
  */
-int handle_info_sharing_to_all(peer_data peer, linked_list *peers);
+int handle_info_sharing_to_all(peer_data *peer, linked_list *peers);
 
 #endif
