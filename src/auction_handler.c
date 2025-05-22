@@ -184,6 +184,7 @@ void *handle_auctions(void *params) {
                 uint32_t bid_price = ntohl(msg.prix);
                 uint16_t bidder_id = ntohs(msg.id);
 
+
                 // Si l'enchère n'existe pas, on ignore le message.
                 if (!check_auction_exists(active_auctions, auction_num)) break;
 
@@ -192,6 +193,8 @@ void *handle_auctions(void *params) {
                 // Si ce pair est superviseur de la vente, rediff l'enchère
                 auction_info *auctions = (auction_info *)active_auctions->array;
                 int count = active_auctions->len / sizeof(auction_info);
+
+                printf("%d", count);
 
                 for (int i = 0; i < count; i++) {
                     if (auctions[i].numv == auction_num &&
