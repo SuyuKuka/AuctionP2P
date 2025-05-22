@@ -185,7 +185,7 @@ void *handle_auctions(void *params) {
                 uint16_t bidder_id = ntohs(msg.id);
 
                 // Si l'enchère n'existe pas, on ignore le message.
-                if (check_auction_exists(active_auctions, auction_num)) break;
+                if (!check_auction_exists(active_auctions, auction_num)) break;
 
                 printf(" Bid of %u on auction #%u by peer %u\n", bid_price, auction_num, bidder_id);
 
