@@ -105,12 +105,8 @@ void *handle_tcp(void *arg) {
                 break;
             case JOIN_SHARE_INFO_TO_ALL:
                 if (read_msg(peer_sock, &msg, ID | IP | PORT | CLE, MILLI(5)) < 0) goto error;
-                peer->id = msg.id;
-                peer->port = msg.port;
-                memcpy(&peer->ip, &msg.ip, sizeof(peer->ip));
-                memcpy(&peer->cle, &msg.cle, sizeof(peer->cle));
-
-                handle_info_sharing_to_all(peer, peers);
+                // Ajout dans la liste.
+                append_peer_data_to_list(peers, msg.id, msg.ip, msg.port, msg.cle);
                 break;
 
             default:

@@ -54,7 +54,7 @@ node *init_node() {
     return n;
 }
 
-void append_to_list(node *n, linked_list *list) {
+void append_to_list(node *n, int node_id, linked_list *list) {
     if (list->head == NULL) {
         list->head = n;
     } else {
@@ -62,10 +62,11 @@ void append_to_list(node *n, linked_list *list) {
         while (last->next != NULL) last = last->next;
         last->next = n;
     }
-    n->id = list->size++;
+    n->id = node_id;
+    list->size++;
 }
 
-void remove_from_list(size_t id, linked_list *list) {
+void remove_from_list(int id, linked_list *list) {
     if (list->head == NULL) return;
 
     node *tmp = list->head, *prev = NULL;
@@ -97,19 +98,12 @@ node *get_last_node(linked_list *list) {
     return tmp;
 }
 
-node *get_node(size_t i, linked_list *list) {
-    node *tmp = list->head;
-    if (!tmp) return NULL;
-
-    size_t cpt = 0;
-    while (cpt != i && tmp != NULL) {
-        tmp = tmp->next;
-        cpt++;
+node *get_node(int id, linked_list *list) {
+    for (node *n = list->head; n != NULL; n = n->next) {
+        if (n->id == id) return n;
     }
 
-    if (cpt != i) return NULL;
-
-    return tmp;
+    return NULL;
 }
 
 void free_list(linked_list *list) {
