@@ -115,6 +115,11 @@ void *handle_auctions(void *params) {
     uint32_t *auction_counter = p->auction_counter;
     linked_list *peers = p->peers;
 
+    if (peers == NULL) {
+        fprintf(stderr, "No peers\n");
+        return NULL;
+    }
+
     // Création socket, listen les messages d'enchères
     int listen_sock = make_multicast_socket(auction_addr);
     if (listen_sock < 0) {
