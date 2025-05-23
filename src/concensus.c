@@ -82,12 +82,10 @@ int send_validation_to_supervisor(int sock, struct sockaddr *addr, message msg) 
     validation_msg.lsig = 1;
     validation_msg.sig = "a";
 
+    int flags = CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG;
+
     // Envoi du message via UDP
-    if (send_msg_to(validation_msg,
-                    CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG,
-                    sock,
-                    addr,
-                    sizeof(struct sockaddr_in)) < 0) {
+    if (send_msg_to(validation_msg, flags, sock, addr, sizeof(struct sockaddr_in6)) < 0) {
         perror("[ERROR] send_msg_to");
         return -1;
     }

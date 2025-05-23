@@ -270,22 +270,32 @@ void *handle_auctions(void *params) {
                 uint32_t bid_price = ntohl(msg.prix);
                 uint16_t bidder_id = ntohs(msg.id);
 
-                printf(" Supervisor validated bid of %u on auction #%u by peer %u\n", bid_price,
-                       auction_num, bidder_id);
-
-                // TODO: processus de consensus ici, post code 10
-                printf("[INFO] %u is sending a new validation bid on auction\n", p_data->id);
+                // Envoi de la validation au superviseur
+                printf("[INFO] %u is sending a new validation bid on auction\n", ntohs(p_data->id));
                 send_validation_to_supervisor(p_data->udp_sock, (struct sockaddr *)&auction_addr, msg);
 
-                // Maj prix actuel dans la liste de ventes
-                auction_info *auctions = (auction_info *)active_auctions->array;
-                int count = active_auctions->len / sizeof(auction_info);
+                // Recevoir la confirmation du superviseur
+                message msg_confirmation;
+                struct sockaddr_in src_addr;
+                socklen_t len = sizeof(src_addr);
+                recv_msg_from(&msg_confirmation, CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG, p_data->udp_sock,
+                          (struct sockaddr *)&src_addr, &len);
+                
+                // Si c’est une validation pour la bonne enchère
+                if (msg_confirmation.code == 2 && msg_confirmation.numv == msg.numv) {
+                    printf(" Supervisor validated bid of %u on auction #%u by peer %u\n", bid_price,
+                       auction_num, bidder_id);
 
-                for (int i = 0; i < count; i++) {
-                    if (auctions[i].numv == auction_num && auctions[i].is_active) {
-                        auctions[i].current_price = bid_price;
-                        auctions[i].current_bidder = bidder_id;
-                        break;
+                    // Maj prix actuel dans la liste de ventes
+                    auction_info *auctions = (auction_info *)active_auctions->array;
+                    int count = active_auctions->len / sizeof(auction_info);
+
+                    for (int i = 0; i < count; i++) {
+                        if (auctions[i].numv == auction_num && auctions[i].is_active) {
+                            auctions[i].current_price = bid_price;
+                            auctions[i].current_bidder = bidder_id;
+                            break;
+                        }
                     }
                 }
                 break;
