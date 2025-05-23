@@ -305,15 +305,15 @@ void *handle_auctions(void *params) {
                 addr.sin6_port = supervisor_peer->port;
 
                 // Envoi de la validation au superviseur
-                printf("[INFO] %u is sending a new validation bid on auction\n", ntohs(p_data->id));
-                send_validation_to_supervisor(p_data->udp_sock, (struct sockaddr *)&addr, msg);
+                if (supervisor_id != 0) {
+                    printf("[INFO] %u is sending a new validation bid on auction\n", ntohs(p_data->id));
+                    send_validation_to_supervisor(p_data->udp_sock, (struct sockaddr *)&addr, msg);
+                }
 
                 // Recevoir la confirmation du superviseur
                 message msg_confirmation;
-                struct sockaddr_in src_addr;
-                socklen_t len = sizeof(src_addr);
                 recv_msg_from(&msg_confirmation, CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG, p_data->udp_serv_sock,
-                          (struct sockaddr *)&src_addr, &len);
+                          NULL, NULL);
                 
                 // Si c’est une validation pour la bonne enchère
                 if (msg_confirmation.code == 2 && msg_confirmation.numv == msg.numv) {
