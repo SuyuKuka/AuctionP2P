@@ -228,17 +228,20 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
 
         for (size_t i = 0; i < msg_confirmation.nb + peer_sig.nb; i++) {
             if (i < 3) {
-                printf("[DEBUG] CONSENSUS: Checking signature #%zu...\n", i);
+                printf("[DEBUG] CONSENSUS: Checking signature #%zu...\n", i + 1);
                 buf_to_msg(buf + header_size + sig_size * i, &peer_sig, ID | LSIG | SIG);
             } else {
                 printf(
                     "[DEBUG] CONSENSUS: Confirmation message split, checking signature #%zu...\n",
-                    i);
+                    i + 1);
                 buf_to_msg(sig_buf + sig_header_size + sig_size * (i - 3), &peer_sig,
                            ID | LSIG | SIG);
             }
             const node *peer;
-            if ((peer = get_node(peer_sig.id, &peers)) == NULL) goto error;
+            if ((peer = get_node(peer_sig.id, &peers)) == NULL) {
+                printf("[ERROR] CONSENSUS: Unknown peer id: %d\n", peer_sig.id);
+                goto error;
+            }
             if (verify_signature(msg_buf.array, peer_sig.sig, ((peer_data *)peer->data)->cle) < 0)
                 goto error;
         }
