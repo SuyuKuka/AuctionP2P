@@ -30,7 +30,7 @@ int main(int argc, char const *argv[]) {
     (void)argc;
     (void)argv;
 
-    int res;
+    int thread_count = 0;
     int udp_sock = -1;                  // Socket UDP pour l'envoi de messages.
     int udp_serv_sock = -1;             // Socket UDP pour la réception de messages en unicast.
     int tcp_serv_sock = -1;             // Socket TCP pour la réception de messages.
@@ -84,7 +84,7 @@ int main(int argc, char const *argv[]) {
     // ===== DEBUG =====
 
     // Demande d'adhésion au système d'enchères
-    res = handle_linking(&p_data, &peers, linking_addr, &auction_addr);
+    int res = handle_linking(&p_data, &peers, linking_addr, &auction_addr);
     if (res == 0) {
         // Initialisation de l'adresse de d'enchères.
         printf("Nobody connected, awaiting new peers...\n");
@@ -95,30 +95,45 @@ int main(int argc, char const *argv[]) {
 
     printf("Successfully joined the auction system!\n");
 
+    // Initialisation du thread de gestion des messages multicast
+    pthread_t join_req_thread;
     multicast_handler_args multicast_args = {.linking_addr = linking_addr,
                                              .auction_addr = auction_addr,
                                              .p_data = p_data,
                                              .running = &running};
+    if (pthread_create(&join_req_thread, NULL, handle_multicast, &multicast_args) < 0) {
+        fprintf(stderr, "Failed to create multicast thread\n");
+        goto error;
+    }
+    thread_count++;
+
+    // Initialisation du thread de gestion des messages TCP
+    pthread_t d_sharing_thread;
     tcp_handler_args tcp_args = {
         .auction_addr = auction_addr, .p_data = p_data, .peers = &peers, .running = &running};
-    pthread_t join_req_thread;
-    if (pthread_create(&join_req_thread, NULL, handle_multicast, &multicast_args) < 0) {
-        goto error;
-    }
-    pthread_t d_sharing_thread;
     if (pthread_create(&d_sharing_thread, NULL, handle_tcp, &tcp_args) < 0) {
+        fprintf(stderr, "Failed to create TCP thread\n");
         goto error;
     }
+    thread_count++;
 
     // Initialisation du thread de gestion des enchères
     pthread_t auction_thread;
     auction_handler_params auction_params = {.p_data = &p_data,
                                              .auction_addr = auction_addr,
                                              .active_auctions = &active_auctions,
-                                             .auction_counter = &auction_counter,
                                              .peers = &peers,
                                              .running = &running};
     if (pthread_create(&auction_thread, NULL, handle_auctions, &auction_params) < 0) goto error;
+    thread_count++;
+
+    // Initialisation du thread de surveillance des enchères inactives
+    pthread_t auction_timer_thread_id;
+    if (pthread_create(&auction_timer_thread_id, NULL, auction_timer_thread, &auction_params) < 0) {
+        fprintf(stderr, "Failed to create auction timer thread\n");
+        goto error;
+    }
+    thread_count++;
 
     printf("\nAuction system initialized. Type 'help' for available commands.\n");
 
@@ -147,7 +162,7 @@ int main(int argc, char const *argv[]) {
             if (sscanf(input, "%*s %u", &initial_price) == 1) {
                 if (init_auction(&p_data, auction_addr, &auction_counter, initial_price,
                                  &active_auctions) < 0) {
-                    printf("Failed to initialize auction\n");
+                    printf("Failed to initialize auction.\n");
                 }
             } else {
                 printf("Usage: init <initial_price>\n");
@@ -156,13 +171,13 @@ int main(int argc, char const *argv[]) {
             uint32_t auction_num, bid_price;
             if (sscanf(input, "%*s %u %u", &auction_num, &bid_price) == 2) {
                 if (place_bid(&p_data, auction_addr, auction_num, bid_price) < 0) {
-                    printf(" Failed to place bid\n");
+                    printf(" Failed to place bid.\n");
                 }
             } else {
                 printf("Usage: bid <auction_number> <bid_price>\n");
             }
-        } else if (strcmp(cmd, "list") == 0) {
-            list_auctions(&active_auctions);    // Lister les ventes actives
+        } else if (strcmp(cmd, "list") == 0) {  // Lister les ventes actives
+            list_auctions(&active_auctions);
         } else if (strcmp(cmd, "help") == 0) {  // Afficher l'aide
             print_help();
         } else if (strcmp(cmd, "quit") == 0) {  // Quitter
@@ -174,12 +189,10 @@ int main(int argc, char const *argv[]) {
     }
 
     // Nettoyage des ressources
-    pthread_cancel(auction_thread);
-    pthread_join(auction_thread, NULL);
-    pthread_cancel(join_req_thread);
     pthread_join(join_req_thread, NULL);
-    pthread_cancel(d_sharing_thread);
     pthread_join(d_sharing_thread, NULL);
+    pthread_join(auction_thread, NULL);
+    pthread_join(auction_timer_thread_id, NULL);
 
     close(udp_sock);
     close(udp_serv_sock);
@@ -190,6 +203,11 @@ int main(int argc, char const *argv[]) {
     return EXIT_SUCCESS;
 
 error:
+    running = 0;
+    if (thread_count >= 1) pthread_join(join_req_thread, NULL);
+    if (thread_count >= 2) pthread_join(d_sharing_thread, NULL);
+    if (thread_count >= 3) pthread_join(auction_thread, NULL);
+    if (thread_count >= 4) pthread_join(auction_timer_thread_id, NULL);
     if (udp_sock) close(udp_sock);
     if (udp_serv_sock) close(udp_serv_sock);
     if (tcp_serv_sock) close(tcp_serv_sock);

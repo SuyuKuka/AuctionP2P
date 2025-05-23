@@ -3,26 +3,31 @@
 
 #include <netinet/in.h>
 #include <stdint.h>
+#include <time.h>
 
 #include "collections.h"
-#include "protocol.h"
 #include "concensus.h"
+#include "protocol.h"
 
 /* Structure d'une enchère */
 typedef struct auction_info {
-    uint32_t numv;           /* Numéro de vente */
-    uint16_t supervisor_id;  /* ID du superviseur */
-    uint32_t current_price;  /* Prix actuel */
-    uint16_t current_bidder; /* ID de l'enchérisseur actuel */
-    int is_active;           /* Indicateur si l'enchère est active */
+    uint32_t numv;            /* Numéro de vente */
+    uint16_t supervisor_id;   /* ID du superviseur */
+    uint32_t current_price;   /* Prix actuel */
+    uint16_t current_bidder;  /* ID de l'enchérisseur actuel */
+    int is_active;            /* Indicateur si l'enchère est active */
+    time_t last_activity;     /* Timestamp de la dernière activité */
+    time_t first_notice_time; /* Timestamp de la première notification */
+    int notice_sent;          /* Si la première notification a été envoyée */
 } auction_info;
+
+#define T3_SECONDS 20  // 20 secondes, pour tests
 
 /* Structure pour les paramètres du thread de gestion des enchères */
 typedef struct auction_handler_params {
     pers_data *p_data;                /* Données personnelles */
     struct sockaddr_in6 auction_addr; /* Adresse multicast d'enchères */
     dyn_array *active_auctions;       /* Liste des enchères actives */
-    unsigned int *auction_counter;    /* Pointeur vers le compteur d'enchères */
     linked_list *peers;               /* Adresses et clés des pairs */
     int *running;                     /* Si on doit ou non arrêter le thread */
 } auction_handler_params;
@@ -73,13 +78,24 @@ int place_bid(const pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_
 void list_auctions(dyn_array *active_auctions);
 
 /**
+ * @brief Thread qui vérifie périodiquement les enchères inactives.
+ *
+ * Ce thread s'exécute en arrière-plan et vérifie périodiquement
+ * si certaines enchères sont inactives depuis trop longtemps.
+ *
+ * @param[in] params Pointeur vers `auction_timer_params`
+ */
+void *auction_timer_thread(void *params);
+
+/**
  * @brief Thread gérant les messages d'enchères.
  *
  * S'exécute dans un thread séparé, responsable de :
  *
  * - l'écoute des messages d'enchères sur l'addr multicast;
  *
- * - traiter des différents types de messages (`AUC_INIT`, `AUC_BID`, 10);
+ * - traiter des différents types de messages (`AUC_INIT`, `AUC_BID`, 'AUC_SUP_REDIFF' et plus à
+ * rajouter);
  *
  * - mettre à jour la liste active_auctions;
  *

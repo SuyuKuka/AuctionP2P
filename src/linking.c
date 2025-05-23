@@ -189,8 +189,6 @@ int send_join_request(int sock, struct sockaddr_in6 linking_addr) {
 
 int await_join_req_response(int sock, linked_list *peers) {
     int msg_flags = CODE | ID | IP | PORT;
-    size_t m_size = msg_size(msg_flags);
-    char buf[m_size];
     int got_res = 0;
 
     int poll_ret;
@@ -198,8 +196,6 @@ int await_join_req_response(int sock, linked_list *peers) {
     while ((poll_ret = poll(&fds, 1, MILLI(5)))) {
         // Message reçu.
         if (fds.revents & POLLIN) {
-            memset(buf, 0, m_size);
-
             // Lecture du message.
             message msg;
             if (recv_msg_from(&msg, msg_flags, sock, NULL, NULL) < 0) continue;
@@ -473,9 +469,8 @@ int send_peer_data_to_all_peers(const peer_data *peer, const linked_list *peers)
     memcpy(msg.cle, peer->cle, sizeof(msg.cle));
 
     int msg_flags = CODE | ID | IP | PORT | CLE;
-    size_t m_size = msg_size(msg_flags);
     dyn_array msg_buf;
-    if (init_dyn_array(&msg_buf, m_size) < 0) return -1;
+    if (init_dyn_array(&msg_buf, msg_size(msg_flags)) < 0) return -1;
     if (concat_msg_to_buf(&msg_buf, &msg, msg_flags) < 0) goto error;
 
     for (node *n = peers->head; n != NULL; n = n->next) {
@@ -540,9 +535,8 @@ int send_all_peers_data_to_peer(const uint8_t *auction_ip, uint16_t auction_port
     msg.nb = peers->size;
 
     int msg_flags = CODE | ID | IP | PORT | NB;
-    size_t m_size = msg_size(msg_flags);
     dyn_array msg_buf;
-    if (init_dyn_array(&msg_buf, m_size) < 0) return -1;
+    if (init_dyn_array(&msg_buf, msg_size(msg_flags)) < 0) return -1;
     if (concat_msg_to_buf(&msg_buf, &msg, msg_flags) < 0) return -1;
 
     struct sockaddr_in6 addr;
