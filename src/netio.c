@@ -109,10 +109,17 @@ error:
 
 int recv_msg_from(message *msg, int flags, size_t additional_size, int sock, struct sockaddr *addr,
                   socklen_t *len) {
+    if (additional_size > 0) {
+        printf("[DEBUG] CONSENSUS: Supervisor recv_msg_from\n");
+    }
+
     char buf[msg_size(flags) + additional_size];
     if (recvfrom(sock, buf, sizeof(buf), 0, addr, len) < 0) {
         perror("[ERROR] recvfrom");
         return -1;
+    }
+    if (additional_size > 0) {
+        printf("[DEBUG] CONSENSUS: Supervisor recv_msg_from END\n");
     }
     buf_to_msg(buf, msg, flags);
     return 0;

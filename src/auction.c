@@ -141,8 +141,6 @@ int main(int argc, char const *argv[]) {
     // Interface user pour la gestion des enchères
     char input[256];
     char cmd[64];
-    int flags = fcntl(p_data.udp_serv_sock, F_GETFL, 0);
-    fcntl(p_data.udp_serv_sock, F_SETFL, flags | O_NONBLOCK);
     while (running) {
         memset(input, 0, sizeof(input));
         memset(cmd, 0, sizeof(cmd));
