@@ -6,11 +6,11 @@
 #include "protocol.h"
 
 int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, linked_list peers,
-                               message mess, int flags) {
+                               message *mess, int flags) {
     // Buffer pour le champ mess
     dyn_array msg_buf;
     if (init_dyn_array(&msg_buf, msg_size(flags)) < 0) return -1;
-    if (concat_msg_to_buf(&msg_buf, &mess, flags) < 0) return -1;
+    if (concat_msg_to_buf(&msg_buf, mess, flags) < 0) return -1;
 
     // Liste des pairs vérifiés
     linked_list checked_list;
@@ -86,12 +86,13 @@ error:
     return -1;
 }
 
-int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, message msg, int flags,
-                                        pers_data p_data, linked_list peers, int mult_sock) {
+int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, message *msg,
+                                        int flags, pers_data p_data, linked_list peers,
+                                        int mult_sock) {
     // Buffer pour le champ mess
     dyn_array msg_buf;
     if (init_dyn_array(&msg_buf, msg_size(flags)) < 0) return -1;
-    if (concat_msg_to_buf(&msg_buf, &msg, flags) < 0) goto error;
+    if (concat_msg_to_buf(&msg_buf, msg, flags) < 0) goto error;
 
     // Message de validation.
     message validation_msg;

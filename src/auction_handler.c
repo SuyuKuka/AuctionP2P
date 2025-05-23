@@ -262,7 +262,8 @@ void *handle_auctions(void *params) {
 
                 // Si superviseur : début du consensus
                 if (supervisor_id == p_data->id) {
-                    if (supervisor_begin_consensus(*p_data, auction_addr, *peers, msg, flags) < 0) {
+                    if (supervisor_begin_consensus(*p_data, auction_addr, *peers, &msg, flags) <
+                        0) {
                         printf("  Consensus failed for bid of %u on auction #%u.\n", bid_price,
                                auction_num);
                         break;
@@ -277,7 +278,7 @@ void *handle_auctions(void *params) {
                     addr.sin6_port = supervisor_peer->port;
 
                     // Envoi de la validation au superviseur
-                    if (send_await_validation_to_supervisor(addr, msg, flags, *p_data, *peers,
+                    if (send_await_validation_to_supervisor(addr, &msg, flags, *p_data, *peers,
                                                             listen_sock) < 0) {
                         printf("  Consensus failed for bid of %u on auction #%u.\n", bid_price,
                                auction_num);
