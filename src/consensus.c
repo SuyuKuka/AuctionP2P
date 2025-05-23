@@ -252,7 +252,8 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
                     printf("[ERROR] CONSENSUS: Unknown peer id: %d\n", sig_id);
                     goto error;
                 }
-                if (verify_signature(msg_buf.array, sig_id, ((peer_data *)peer->data)->cle) < 0)
+                if (verify_signature(msg_buf.array, sig_msg.sig, ((peer_data *)peer->data)->cle) <
+                    0)
                     goto error;
             }
         }
