@@ -248,7 +248,6 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
                 buf_to_msg(following_buf + following_header_size + sig_msg_offset, &sig_msg,
                            ID | LSIG | SIG);
             }
-            printf("OFFSET: %zu\n", sig_msg_offset);
             sig_msg_offset += msg_size(ID | LSIG) + sig_msg.lsig;
 
             const node *peer;
