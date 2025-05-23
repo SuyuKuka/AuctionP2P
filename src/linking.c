@@ -78,14 +78,14 @@ int handle_peers_data_sharing(struct sockaddr_in6 *auction_addr, linked_list *pe
  * @param[in]   pers_id ID personnel.
  * @param[in]   id ID reçu.
  *
- * @return `id` si l'ID est unique, sinon un nouvel ID en /!\ big-endian.
+ * @return `id` si l'ID est unique, sinon un nouvel ID.
  */
 int verify_id(linked_list *peers, uint16_t pers_id, uint16_t id);
 /**
  * @brief Envoi du message contenant la validité de l'ID. (`code = 50` ou `code = 51`).
  *
  * @param[in]   sock Socket TCP.
- * @param[in]   id ID reçu ou le nouvel ID en /!\ big-endian.
+ * @param[in]   id ID reçu ou le nouvel ID.
  * @param[in]   validity Validité de l'id (`0` ou `1`).
  *
  * @return `-1` en cas d'erreur, `0` sinon.
@@ -205,15 +205,16 @@ int await_join_req_response(int sock, linked_list *peers) {
                 got_res = 1;
 
                 // Ajout des données du pair dans `peers`.
-                if (append_peer_data_to_list(peers, msg.id, msg.ip, msg.port, msg.cle) < 0)
+                if (append_peer_data_to_list(peers, ntohs(msg.id), msg.ip, ntohs(msg.port),
+                                             msg.cle) < 0)
                     continue;
 
                 // ===== DEBUG =====
                 peer_data *d = get_last_node(peers)->data;
                 char ip_str[INET6_ADDRSTRLEN];
                 if (inet_ntop(AF_INET6, d->ip, ip_str, sizeof(ip_str)))
-                    printf("[DEBUG] Response received from peer %d of ip %s %d.\n", ntohs(d->id),
-                           ip_str, ntohs(d->port));
+                    printf("[DEBUG] Response received from peer %d of ip %s %d.\n", d->id, ip_str,
+                           d->port);
                 // ===== DEBUG =====
             }
         }
@@ -240,8 +241,8 @@ int handle_pers_data_sharing(pers_data *p_data, linked_list *peers) {
     }
 
     for (node *n = peers->head; n != NULL; n = n->next) {
-        peer_data *peer = n->data;
-        printf("[DEBUG] Trying to share address and key to peer %d.\n", ntohs(peer->id));
+        const peer_data *peer = n->data;
+        printf("[DEBUG] Trying to share address and key to peer %d.\n", peer->id);
         ret = send_pers_data_to_peer(*p_data, *peer, sock);
         if (ret == 0) break;
     }
@@ -256,7 +257,7 @@ int send_pers_data_to_peer(pers_data p_data, peer_data peer, int sock) {
     message msg;
     memset(&msg, 0, sizeof(msg));
     msg.code = JOIN_SHARE_INFO;
-    msg.id = p_data.id;
+    msg.id = htons(p_data.id);
     memcpy(&msg.ip, &p_data.addr.sin6_addr, sizeof(msg.ip));
     msg.port = p_data.addr.sin6_port;
     memcpy(&msg.cle, &p_data.cle, sizeof(msg.cle));
@@ -264,14 +265,13 @@ int send_pers_data_to_peer(pers_data p_data, peer_data peer, int sock) {
     struct sockaddr_in6 addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin6_family = AF_INET6;
-    addr.sin6_port = peer.port;
+    addr.sin6_port = htons(peer.port);
     memcpy(&addr.sin6_addr.s6_addr, &peer.ip, sizeof(addr.sin6_addr.s6_addr));
 
     // ===== DEBUG =====
     char ip_str[INET6_ADDRSTRLEN];
     if (inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str)))
-        printf("[DEBUG] Sharing info to peer %d of ip %s %d.\n", ntohs(peer.id), ip_str,
-               ntohs(peer.port));
+        printf("[DEBUG] Sharing info to peer %d of ip %s %d.\n", peer.id, ip_str, peer.port);
     // ===== DEBUG =====
 
     // Connexion via TCP sur l'adresse du pair.
@@ -297,9 +297,9 @@ int await_pers_data_sharing_res(pers_data *p_data, int sock) {
     if (code == JOIN_INVALID_ID) {
         uint16_t id;
         if (read_nb(sock, &id, sizeof(id), MILLI(5)) < 0) return -1;
-        printf("[DEBUG] ID %d already used.\n", ntohs(p_data->id));
-        p_data->id = id;
-        printf("[DEBUG] New ID set: %d.\n", ntohs(p_data->id));
+        printf("[DEBUG] ID %d already used.\n", p_data->id);
+        p_data->id = ntohs(id);
+        printf("[DEBUG] New ID set: %d.\n", p_data->id);
     } else if (code != JOIN_VALID_ID) {
         printf("[DEBUG] Invalid ID response code received: %d.\n", code);
         return -1;
@@ -363,10 +363,11 @@ int handle_peers_data_sharing(struct sockaddr_in6 *auction_addr, linked_list *pe
         // ===== DEBUG =====
 
         // Ignore les infos du pair si déjà dans la liste.
-        if (get_node(msg.id, peers)) continue;
+        if (get_node(ntohs(msg.id), peers)) continue;
 
         // Ajout des infos du pair dans la liste.
-        if (append_peer_data_to_list(peers, msg.id, msg.ip, msg.port, msg.cle) < 0) goto error;
+        if (append_peer_data_to_list(peers, ntohs(msg.id), msg.ip, ntohs(msg.port), msg.cle) < 0)
+            goto error;
     }
 
     close(peer_sock);
@@ -388,7 +389,7 @@ int handle_join_request(struct sockaddr_in6 addr, pers_data p_data) {
     message msg;
     memset(&msg, 0, sizeof(msg));
     msg.code = JOIN_REQ_RES;
-    msg.id = p_data.id;
+    msg.id = htons(p_data.id);
     memcpy(msg.ip, p_data.addr.sin6_addr.s6_addr, sizeof(msg.ip));
     msg.port = p_data.addr.sin6_port;
 
@@ -417,7 +418,7 @@ int handle_info_sharing(int peer_sock, peer_data *peer, pers_data p_data, linked
     peer_data *d = get_last_node(peers)->data;
     char ip_str[INET6_ADDRSTRLEN];
     if (inet_ntop(AF_INET6, d->ip, ip_str, sizeof(ip_str)))
-        printf("[DEBUG] Peer %d shared his ip %s %d.\n", ntohs(d->id), ip_str, ntohs(d->port));
+        printf("[DEBUG] Peer %d shared his ip %s %d.\n", d->id, ip_str, d->port);
     // ===== DEBUG =====
 
     if (send_peer_data_to_all_peers(peer, peers) < 0) {
@@ -440,7 +441,7 @@ error:
 
 int verify_id(linked_list *peers, uint16_t pers_id, uint16_t id) {
     int exists = pers_id == id || get_node(id, peers) != NULL;
-    if (exists) id = htons(rand() % UINT16_MAX);
+    if (exists) id = rand() % UINT16_MAX;
     return id;
 }
 
@@ -463,9 +464,9 @@ int send_peer_data_to_all_peers(const peer_data *peer, const linked_list *peers)
     message msg;
     memset(&msg, 0, sizeof(msg));
     msg.code = JOIN_SHARE_INFO_TO_ALL;
-    msg.id = peer->id;
+    msg.id = htons(peer->id);
     memcpy(msg.ip, peer->ip, sizeof(msg.ip));
-    msg.port = peer->port;
+    msg.port = htons(peer->port);
     memcpy(msg.cle, peer->cle, sizeof(msg.cle));
 
     int msg_flags = CODE | ID | IP | PORT | CLE;
@@ -481,7 +482,7 @@ int send_peer_data_to_all_peers(const peer_data *peer, const linked_list *peers)
         memset(&addr, 0, sizeof(addr));
         addr.sin6_family = AF_INET6;
         memcpy(&addr.sin6_addr.s6_addr, other_peer->ip, sizeof(addr.sin6_addr.s6_addr));
-        addr.sin6_port = other_peer->port;
+        addr.sin6_port = htons(other_peer->port);
 
         // Socket TCP.
         int sock = socket(PF_INET6, SOCK_STREAM, 0);
@@ -506,8 +507,8 @@ int send_peer_data_to_all_peers(const peer_data *peer, const linked_list *peers)
         // ===== DEBUG =====
         char ip_str[INET6_ADDRSTRLEN];
         if (inet_ntop(AF_INET6, other_peer->ip, ip_str, sizeof(ip_str)))
-            printf("[DEBUG] Shared peer %d's info (%s %d) to another peer.\n",
-                   ntohs(other_peer->id), ip_str, ntohs(other_peer->port));
+            printf("[DEBUG] Shared peer %d's info (%s %d) to another peer.\n", other_peer->id,
+                   ip_str, other_peer->port);
         // ===== DEBUG =====
 
     loop_err:
@@ -529,7 +530,7 @@ int send_all_peers_data_to_peer(const uint8_t *auction_ip, uint16_t auction_port
     message msg;
     memset(&msg, 0, sizeof(msg));
     msg.code = JOIN_SHARE_ALL_INFO;
-    msg.id = p_data.id;
+    msg.id = htons(p_data.id);
     memcpy(msg.ip, auction_ip, sizeof(msg.ip));
     msg.port = auction_port;
     msg.nb = peers->size;
@@ -543,7 +544,7 @@ int send_all_peers_data_to_peer(const uint8_t *auction_ip, uint16_t auction_port
     memset(&addr, 0, sizeof(addr));
     addr.sin6_family = AF_INET6;
     memcpy(&addr.sin6_addr.s6_addr, peer->ip, sizeof(addr.sin6_addr.s6_addr));
-    addr.sin6_port = peer->port;
+    addr.sin6_port = htons(peer->port);
 
     // Socket TCP.
     int sock = socket(PF_INET6, SOCK_STREAM, 0);
@@ -577,9 +578,9 @@ int send_all_peers_data_to_peer(const uint8_t *auction_ip, uint16_t auction_port
         memset(&msg, 0, sizeof(msg));
         msg_buf.len = 0;
 
-        msg.id = other_peer->id;
+        msg.id = htons(other_peer->id);
         memcpy(msg.ip, other_peer->ip, sizeof(msg.ip));
-        msg.port = other_peer->port;
+        msg.port = htons(other_peer->port);
         memcpy(msg.cle, other_peer->cle, sizeof(msg.cle));
 
         if (concat_msg_to_buf(&msg_buf, &msg, ID | IP | PORT | CLE) < 0 ||

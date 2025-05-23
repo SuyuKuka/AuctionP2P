@@ -40,7 +40,7 @@ int make_udp_receiver_socket(uint16_t port) {
     memset(&s_addr, 0, sizeof(s_addr));
     s_addr.sin6_family = AF_INET6;
     s_addr.sin6_addr = in6addr_any;
-    s_addr.sin6_port = port;
+    s_addr.sin6_port = htons(port);
 
     if (bind(sock, (struct sockaddr *)&s_addr, sizeof(s_addr)) < 0) {
         perror("[ERROR] bind");
@@ -55,7 +55,7 @@ error:
 }
 
 int make_multicast_socket(struct sockaddr_in6 multicast_addr) {
-    int receiver_sock = make_udp_receiver_socket(multicast_addr.sin6_port);
+    int receiver_sock = make_udp_receiver_socket(ntohs(multicast_addr.sin6_port));
     if (receiver_sock < 0) {
         return -1;
     }

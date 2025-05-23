@@ -61,7 +61,7 @@ int main(int argc, char const *argv[]) {
         goto error;
 
     // Initialisation udp_serv_sock.
-    udp_serv_sock = make_udp_receiver_socket(personal_addr.sin6_port);
+    udp_serv_sock = make_udp_receiver_socket(ntohs(personal_addr.sin6_port));
     if (udp_serv_sock < 0) goto error;
 
     // Initialisation tcp_serv_sock.

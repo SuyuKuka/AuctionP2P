@@ -16,7 +16,7 @@
 int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *counter,
                  uint32_t initial_price, dyn_array *active_auctions) {
     // Utilisation du compteur comme numéro de vente
-    uint32_t auction_num = ntohs(p_data->id) + *counter + 1;
+    uint32_t auction_num = p_data->id + *counter + 1;
 
     (*counter)++;
 
@@ -25,7 +25,7 @@ int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *
     memset(&auction_init_msg, 0, sizeof(message));
 
     auction_init_msg.code = AUC_INIT;              // CODE = 8
-    auction_init_msg.id = p_data->id;              // ID du pair
+    auction_init_msg.id = htons(p_data->id);       // ID du pair
     auction_init_msg.numv = htonl(auction_num);    // Numéro de vente
     auction_init_msg.prix = htonl(initial_price);  // Prix initial
 
@@ -38,9 +38,9 @@ int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *
     // Ajout de la vente à la liste
     auction_info new_auction;
     new_auction.numv = auction_num;
-    new_auction.supervisor_id = ntohs(p_data->id);
+    new_auction.supervisor_id = p_data->id;
     new_auction.current_price = initial_price;
-    new_auction.current_bidder = ntohs(p_data->id);
+    new_auction.current_bidder = p_data->id;
     new_auction.is_active = 1;
     new_auction.last_activity = time(NULL);
     new_auction.first_notice_time = 0;
@@ -61,7 +61,7 @@ int place_bid(const pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_
     memset(&bid_msg, 0, sizeof(message));
 
     bid_msg.code = AUC_BID;             // CODE = 9
-    bid_msg.id = p_data->id;            // ID du pair
+    bid_msg.id = htons(p_data->id);     // ID du pair
     bid_msg.numv = htonl(auction_num);  // Numéro de vente
     bid_msg.prix = htonl(bid_price);    // Prix proposé
 
@@ -199,7 +199,7 @@ void *handle_auctions(void *params) {
 
                 for (int i = 0; i < count; i++) {
                     if (auctions[i].numv == auction_num &&
-                        auctions[i].supervisor_id == ntohs(p_data->id) && auctions[i].is_active) {
+                        auctions[i].supervisor_id == p_data->id && auctions[i].is_active) {
                         // Check si l'enchère est valide
                         if (bid_price > auctions[i].current_price) {
                             // Rediff l'enchère avec le code AUC_SUP_REDIFF (rediffusion)
@@ -254,14 +254,14 @@ void *handle_auctions(void *params) {
                 for (node *n = peers->head; n != NULL; n = n->next) {
                     if (ntohs(n->id) == supervisor_id) supervisor_peer = (peer_data *)n->data;
                 }
-                if (supervisor_id != ntohs(p_data->id) && supervisor_peer == NULL) {
+                if (supervisor_id != p_data->id && supervisor_peer == NULL) {
                     printf("[ERROR] Supervisor for auction #%u not found in peers list.\n",
                            auction_num);
                     break;
                 }
 
                 // Si superviseur : début du consensus
-                if (supervisor_id == ntohs(p_data->id)) {
+                if (supervisor_id == p_data->id) {
                     if (supervisor_begin_consensus(*p_data, auction_addr, peers, &msg, flags) < 0) {
                         printf("  Consensus failed for bid of %u on auction #%u.\n", bid_price,
                                auction_num);
@@ -274,7 +274,7 @@ void *handle_auctions(void *params) {
                     addr.sin6_family = AF_INET6;
                     memcpy(&addr.sin6_addr.s6_addr, supervisor_peer->ip,
                            sizeof(addr.sin6_addr.s6_addr));
-                    addr.sin6_port = supervisor_peer->port;
+                    addr.sin6_port = htons(supervisor_peer->port);
 
                     // ===== DEBUG =====
                     char ip_str[INET6_ADDRSTRLEN];
@@ -443,8 +443,8 @@ int send_auction_end_notice(const pers_data *p_data, struct sockaddr_in6 auction
         notice_msg.code = AUC_END;         // CODE = 12
         notice_msg.id = htons(winner_id);  // ID du gagnant
     } else {
-        notice_msg.code = AUC_NOTICE;  // CODE = 11
-        notice_msg.id = p_data->id;    // ID du pair (superviseur)
+        notice_msg.code = AUC_NOTICE;       // CODE = 11
+        notice_msg.id = htons(p_data->id);  // ID du pair (superviseur)
     }
 
     if (send_msg_to(notice_msg, CODE | ID | NUMV | PRIX, p_data->udp_sock,
@@ -479,7 +479,7 @@ void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr
         auction_info *auction = &auctions[i];
 
         // Vérifier uniquement les enchères actives dont ce pair est le superviseur
-        if (!auction->is_active || auction->supervisor_id != ntohs(p_data->id)) continue;
+        if (!auction->is_active || auction->supervisor_id != p_data->id) continue;
 
         // Vérifie si c'est le moment d'envoyer la première/dernière notice de fin
         time_t elapsed = current_time - auctions[i].last_activity;
@@ -503,7 +503,7 @@ void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr
                 message init_msg;
                 memset(&init_msg, 0, sizeof(message));
                 init_msg.code = AUC_INIT;
-                init_msg.id = p_data->id;
+                init_msg.id = htons(p_data->id);
                 init_msg.numv = htonl(auction->numv);
                 init_msg.prix = htonl(auction->current_price);
 

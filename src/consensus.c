@@ -72,7 +72,7 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
     message validation_msg;
     memset(&validation_msg, 0, sizeof(validation_msg));
     validation_msg.code = CONS_CONF;
-    validation_msg.id = p_data.id;
+    validation_msg.id = htons(p_data.id);
     validation_msg.lmess = msg_buf.len;
     memcpy(validation_msg.mess, msg_buf.array, validation_msg.lmess);
     validation_msg.lsig = 0;
@@ -112,7 +112,7 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
     message validation_msg;
     memset(&validation_msg, 0, sizeof(validation_msg));
     validation_msg.code = CONS_VAL;
-    validation_msg.id = p_data.id;
+    validation_msg.id = htons(p_data.id);
     validation_msg.lmess = msg_buf.len;
     memcpy(validation_msg.mess, msg_buf.array, validation_msg.lmess);
     validation_msg.lsig = 0;
