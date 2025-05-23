@@ -22,6 +22,7 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
     printf("[DEBUG] CONSENSUS: Waiting for %zu validation(s)...\n", peers.size);
     while ((poll_ret = poll(&fds, 1, MILLI(5)))) {
         message msg;
+        printf("[DEBUG] CONSENSUS: Message received, verifying code...\n");
         if (recv_msg_from(&msg, CODE | ID | LMESS | MESS | LSIG | SIG, p_data.udp_serv_sock, NULL,
                           NULL) < 0) {
             perror("[ERROR] recvfrom");
