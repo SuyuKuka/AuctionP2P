@@ -90,7 +90,7 @@ void list_auctions(dyn_array *active_auctions) {
             printf("    [ACTIVE] Auction #%u: current price %u (last bidder: %u).\n",
                    auctions[i].numv, auctions[i].current_price, auctions[i].current_bidder);
         } else {
-            printf("    [CLOSED] Auction #%u: final price %u (winner: %u).\n", auctions[i].numv,
+            printf("    [CLOSED] Auction #%u: final price %u   (winner: %u).\n", auctions[i].numv,
                    auctions[i].current_price, auctions[i].current_bidder);
         }
     }
