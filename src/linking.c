@@ -213,8 +213,8 @@ int await_join_req_response(int sock, linked_list *peers) {
                 peer_data *d = get_last_node(peers)->data;
                 char ip_str[INET6_ADDRSTRLEN];
                 if (inet_ntop(AF_INET6, d->ip, ip_str, sizeof(ip_str)))
-                    printf("[DEBUG] Response received from peer %d of ip %s %d.\n", d->id, ip_str,
-                           d->port);
+                    printf("[DEBUG] Response received from peer %d of ip %s %d.\n", ntohs(msg.id),
+                           ip_str, ntohs(msg.port));
                 // ===== DEBUG =====
             }
         }
