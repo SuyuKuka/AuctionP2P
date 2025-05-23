@@ -265,6 +265,7 @@ void *handle_auctions(void *params) {
             }
 
             case AUC_SUP_REDIFF: {  // Rediff de l'enchère par le superviseur
+                usleep(100 * 1000); // Attente de 100ms pour laisser le superviseur le temps de se mettre en mode écoute
                 buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
                 uint32_t auction_num = ntohl(msg.numv);
                 uint32_t bid_price = ntohl(msg.prix);
