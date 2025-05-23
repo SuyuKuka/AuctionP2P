@@ -120,8 +120,13 @@ int recv_msg_from(message *msg, int flags, size_t additional_size, int sock, str
         return -1;
     }
     if (additional_size > 0) {
-        printf("[DEBUG] CONSENSUS: Supervisor recv_msg_from END: %d, msg_size: %zu\n", r,
-               msg_size(flags));
+#include <string.h>
+        uint16_t id;
+        memcpy(&id, buf + 1, 2);
+        printf(
+            "[DEBUG] CONSENSUS: Supervisor recv_msg_from END: %d, msg_size: %zu, code: %d, id: "
+            "%d, lmess: %d\n",
+            r, msg_size(flags), buf[0], ntohs(id), buf[4]);
     }
     buf_to_msg(buf, msg, flags);
     if (additional_size > 0) {
