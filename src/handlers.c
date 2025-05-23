@@ -34,7 +34,7 @@ void *handle_multicast(void *arg) {
         // Adresse de l'expéditeur.
         struct sockaddr_in6 addr;
         socklen_t addr_len = sizeof(addr);
-        if (recv_msg_from(&msg, ALL, linking_subs_sock, (struct sockaddr *)&addr, &addr_len) < 0)
+        if (recv_msg_from(&msg, ALL, 0, linking_subs_sock, (struct sockaddr *)&addr, &addr_len) < 0)
             continue;
 
         // ===== DEBUG =====

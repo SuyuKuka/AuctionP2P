@@ -198,7 +198,7 @@ int await_join_req_response(int sock, linked_list *peers) {
         if (fds.revents & POLLIN) {
             // Lecture du message.
             message msg;
-            if (recv_msg_from(&msg, msg_flags, sock, NULL, NULL) < 0) continue;
+            if (recv_msg_from(&msg, msg_flags, 0, sock, NULL, NULL) < 0) continue;
 
             // Code correct.
             if (msg.code == JOIN_REQ_RES) {

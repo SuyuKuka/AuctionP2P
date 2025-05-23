@@ -99,8 +99,6 @@ size_t msg_size(int flags) {
     if (flags & ID) size += sizeof(msg.id);
     if (flags & LMESS) size += sizeof(msg.lmess);
     if (flags & LSIG) size += sizeof(msg.lsig);
-    if (flags & MESS) size += sizeof(msg.mess);
-    if (flags & SIG) size += sizeof(msg.sig);
     if (flags & IP) size += sizeof(msg.ip);
     if (flags & PORT) size += sizeof(msg.port);
     if (flags & CLE) size += sizeof(msg.cle);

@@ -107,8 +107,9 @@ error:
     return -1;
 }
 
-int recv_msg_from(message *msg, int flags, int sock, struct sockaddr *addr, socklen_t *len) {
-    char buf[msg_size(flags)];
+int recv_msg_from(message *msg, int flags, size_t additional_size, int sock, struct sockaddr *addr,
+                  socklen_t *len) {
+    char buf[msg_size(flags) + additional_size];
     if (recvfrom(sock, buf, sizeof(buf), 0, addr, len) < 0) {
         perror("[ERROR] recvfrom");
         return -1;
