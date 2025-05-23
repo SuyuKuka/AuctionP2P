@@ -16,7 +16,6 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
     linked_list checked_list;
     memset(&checked_list, 0, sizeof(checked_list));
 
-    char buf[1024];
     int poll_ret;
     struct pollfd fds = {.fd = p_data.udp_serv_sock, .events = POLLIN};
     // Le superviseur attend les messages de validations
@@ -178,5 +177,8 @@ error:
 
 int verify_signature(const char *mess, const char *signature, const char *key) {
     // TODO: Check signature
+    (void)mess;
+    (void)signature;
+    (void)key;
     return 0;
 }

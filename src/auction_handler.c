@@ -131,7 +131,6 @@ void *handle_auctions(void *params) {
     }
 
     char buffer[1024];
-    auction_info consensus_auction;
     while (*p->running) {
         memset(buffer, 0, sizeof(buffer));
 
@@ -191,11 +190,6 @@ void *handle_auctions(void *params) {
                     break;
                 }
 
-                // Ajout des infos dans l'enchère attendant le consensus.
-                consensus_auction.current_bidder = bidder_id;
-                consensus_auction.current_price = bid_price;
-                consensus_auction.numv = auction_num;
-
                 printf("  Bid of %u on auction #%u by peer %u.\n", bid_price, auction_num,
                        bidder_id);
 
@@ -232,8 +226,8 @@ void *handle_auctions(void *params) {
                             }
                         }
                     }
-                    break;
                 }
+                break;
             }
 
             case AUC_SUP_REDIFF: {  // Rediff de l'enchère par le superviseur (10)
