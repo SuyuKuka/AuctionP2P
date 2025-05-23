@@ -140,7 +140,7 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
     int got_res = 0;
     int poll_ret;
     struct pollfd fd = {.fd = mult_sock, .events = POLLIN};
-    while ((poll_ret = poll(&fd, 1, MILLI(5))) > 0) {
+    while ((poll_ret = poll(&fd, 1, MILLI(10))) > 0) {
         if (fd.revents & POLLIN) {
             if (recvfrom(mult_sock, buf, sizeof(buf), 0, NULL, NULL) < 0) {
                 perror("[ERROR] recvfrom");
