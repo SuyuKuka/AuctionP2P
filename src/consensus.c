@@ -36,13 +36,19 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
             // Vérification de la signature
             uint16_t peer_id = ntohs(msg.id);
             const node *peer;
-            if ((peer = get_node(peer_id, &peers)) == NULL) continue;
+            if ((peer = get_node(peer_id, &peers)) == NULL) {
+                printf("[ERROR] CONSENSUS: Unknown peer id: %d\n", peer_id);
+                continue;
+            }
             if (verify_signature(msg_buf.array, msg.sig, ((peer_data *)peer->data)->cle) < 0)
                 continue;
 
             // Ajout dans la liste des pairs vérifiés
             node *n = init_node();
-            if (!n) continue;
+            if (!n) {
+                printf("[ERROR] CONSENSUS: Failed to add peer to checked list.\n");
+                continue;
+            }
             append_to_list(n, peer_id, &checked_list);
 
             printf("[DEBUG] CONSENSUS: Peer %d message validated!\n", peer_id);
