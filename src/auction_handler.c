@@ -310,6 +310,8 @@ void *handle_auctions(void *params) {
                     send_validation_to_supervisor(p_data->udp_sock, (struct sockaddr *)&addr, msg);
                 }
 
+                printf("After sending...\n");
+
                 // Recevoir la confirmation du superviseur
                 message msg_confirmation;
                 recv_msg_from(&msg_confirmation, CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG, p_data->udp_serv_sock,
