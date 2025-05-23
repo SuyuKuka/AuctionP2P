@@ -270,7 +270,7 @@ void *handle_auctions(void *params) {
                 uint32_t bid_price = ntohl(msg.prix);
                 uint16_t bidder_id = ntohs(msg.id);
                 uint16_t supervisor_id;
-                // peer_data *supervisor_peer;
+                peer_data *supervisor_peer;
 
                 auction_info *auctions = (auction_info *)active_auctions->array;
                 int count = active_auctions->len / sizeof(auction_info);
@@ -284,15 +284,15 @@ void *handle_auctions(void *params) {
                     }
                 }
 
-                printf("Supervisor is %u", supervisor_id);
+                printf("Supervisor is %u\n", supervisor_id);
 
                 // // Récupérer le peer du superviseur
-                // for (node *n = peers->head; n != NULL; n = n->next) {
-                //     if (n->id == supervisor_id) {
-                //         supervisor_peer = n->data;
-                //         break;
-                //     }
-                // }
+                for (node *n = peers->head; n != NULL; n = n->next) {
+                    if (n->id == supervisor_id) {
+                        supervisor_peer = n->data;
+                        break;
+                    }
+                }
 
                 // Créer l'addresse du superviseur
                 // struct sockaddr_in6 addr;
