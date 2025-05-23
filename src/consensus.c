@@ -24,6 +24,7 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
     while ((poll_ret = poll(&fd, 1, MILLI(5))) > 0) {
         if (fd.revents & POLLIN) {
             message msg;
+            memset(&msg, 0, sizeof(msg));
             if (recv_msg_from(&msg, msg_flags, 1024, p_data.udp_serv_sock, NULL, NULL) < 0) {
                 fprintf(stderr, "[ERROR] recvfrom\n");
                 continue;
@@ -123,10 +124,12 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
 
     char buf[1024];
     char sig_buf[1024];
-    memset(buf, 0, sizeof(buf));
-    memset(sig_buf, 0, sizeof(sig_buf));
     message msg_confirmation;
     message peer_sig;
+    memset(buf, 0, sizeof(buf));
+    memset(sig_buf, 0, sizeof(sig_buf));
+    memset(&msg_confirmation, 0, sizeof(msg_confirmation));
+    memset(&peer_sig, 0, sizeof(peer_sig));
 
     // Recevoir la confirmation du superviseur
     int got_res = 0;
