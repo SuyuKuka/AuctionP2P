@@ -106,8 +106,6 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
     if (init_dyn_array(&msg_buf, msg_size(flags)) < 0) return -1;
     if (concat_msg_to_buf(&msg_buf, msg, flags) < 0) goto error;
 
-    printf("[DEBUG] CONSENSUS: message length: %zu\n", msg_buf.len);
-
     // Message de validation.
     message validation_msg;
     memset(&validation_msg, 0, sizeof(validation_msg));
