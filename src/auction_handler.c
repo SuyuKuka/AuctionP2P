@@ -245,18 +245,28 @@ void *handle_auctions(void *params) {
                 for (int i = 0; i < count; i++) {
                     if (auctions[i].numv == auction_num) supervisor_id = auctions[i].supervisor_id;
                 }
-                if (supervisor_id == -1) break;
+                if (supervisor_id == -1) {
+                    printf("[ERROR] Unknown supervisor for auction #%u.\n", auction_num);
+                    break;
+                }
 
                 // Infos du superviseur
                 for (node *n = peers->head; n != NULL; n = n->next) {
                     if (n->id == supervisor_id) supervisor_peer = (peer_data *)n->data;
                 }
-                if (supervisor_peer == NULL) break;
+                if (supervisor_peer == NULL) {
+                    printf("[ERROR] Supervisor for auction #%u not found in peers list.\n",
+                           auction_num);
+                    break;
+                }
 
                 // Si superviseur : début du consensus
                 if (supervisor_id == p_data->id) {
-                    if (supervisor_begin_consensus(*p_data, auction_addr, *peers, msg, flags) < 0)
+                    if (supervisor_begin_consensus(*p_data, auction_addr, *peers, msg, flags) < 0) {
+                        printf("  Consensus failed for bid of %u on auction #%u.\n", bid_price,
+                               auction_num);
                         break;
+                    }
                 } else {  // Envoi du message de consensus au superviseur
                     // Adresse du superviseur
                     struct sockaddr_in6 addr;
@@ -269,6 +279,8 @@ void *handle_auctions(void *params) {
                     // Envoi de la validation au superviseur
                     if (send_await_validation_to_supervisor(addr, msg, flags, *p_data, *peers,
                                                             listen_sock) < 0) {
+                        printf("  Consensus failed for bid of %u on auction #%u.\n", bid_price,
+                               auction_num);
                         break;
                     }
                 }
@@ -280,6 +292,8 @@ void *handle_auctions(void *params) {
                         auctions[i].current_bidder = bidder_id;
                         auctions[i].last_activity = time(NULL);
                         auctions[i].notice_sent = 0;
+                        printf("  Bid of %u on auction #%u by peer %u validated.\n", bid_price,
+                               auction_num, bidder_id);
                         break;
                     }
                 }
