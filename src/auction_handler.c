@@ -285,8 +285,8 @@ void *handle_auctions(void *params) {
                     printf("Auction num: %u\n", auctions[i].numv);
                     if (auctions[i].numv == auction_num) {
                         for (node *n = peers->head; n != NULL; n = n->next) {
-                            printf("Peer id boucle: %u\n", n->id);
-                            if (n->id == auctions[i].supervisor_id) {
+                            printf("Peer id boucle: %u\n", ntohs(n->id));
+                            if (ntohs(n->id) == auctions[i].supervisor_id) {
                                 supervisor_id = auctions[i].supervisor_id;
                                 supervisor_peer = n->data;
                                 break;
