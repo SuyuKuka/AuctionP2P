@@ -272,6 +272,8 @@ void *handle_auctions(void *params) {
                 uint16_t supervisor_id;
                 peer_data *supervisor_peer;
 
+                printf("TEST");
+
                 auction_info *auctions = (auction_info *)active_auctions->array;
                 int count = active_auctions->len / sizeof(auction_info);
 
