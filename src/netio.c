@@ -108,8 +108,7 @@ error:
 }
 
 int recv_msg_from(message *msg, int flags, int sock, struct sockaddr *addr, socklen_t *len) {
-    size_t m_size = msg_size(flags);
-    char buf[m_size];
+    char buf[msg_size(flags)];
     if (recvfrom(sock, buf, sizeof(buf), 0, addr, len) < 0) {
         perror("[ERROR] recvfrom");
         return -1;
@@ -122,8 +121,7 @@ int write_msg(message msg, int flags, int sock, int timeout) {
     int ret = 0;
 
     dyn_array msg_buf;
-    size_t m_size = msg_size(flags);
-    if (init_dyn_array(&msg_buf, m_size) < 0) return -1;
+    if (init_dyn_array(&msg_buf, msg_size(flags)) < 0) return -1;
     if (concat_msg_to_buf(&msg_buf, &msg, flags) < 0 ||
         write_nb(sock, msg_buf.array, msg_buf.len, timeout) < 0)
         ret = -1;
@@ -133,8 +131,7 @@ int write_msg(message msg, int flags, int sock, int timeout) {
 }
 
 int read_msg(int sock, message *msg, int flags, int timeout) {
-    size_t m_size = msg_size(flags);
-    char buf[m_size];
+    char buf[msg_size(flags)];
     if (read_nb(sock, buf, sizeof(buf), timeout) < 0) return -1;
     buf_to_msg(buf, msg, flags);
     return 0;
