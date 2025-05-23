@@ -74,7 +74,7 @@ int main(int argc, char const *argv[]) {
     p_data.udp_sock = udp_sock;
     p_data.udp_serv_sock = udp_serv_sock;
     p_data.tcp_serv_sock = tcp_serv_sock;
-    p_data.id = htons(rand() % UINT16_MAX);
+    p_data.id = rand() % UINT16_MAX;
     memset(&p_data.cle, 0, sizeof(p_data.cle));
 
     // ===== DEBUG =====
