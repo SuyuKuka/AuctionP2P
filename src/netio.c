@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <stdio.h>
+#include <string.h>
 
 int read_nb(int sock, void *buf, size_t n, int timeout) {
     struct pollfd fd = {.fd = sock, .events = POLLIN};
@@ -114,13 +115,13 @@ int recv_msg_from(message *msg, int flags, size_t additional_size, int sock, str
     }
 
     char buf[msg_size(flags) + additional_size];
+    memset(buf, 0, sizeof(buf));
     int r;
     if ((r = recvfrom(sock, buf, sizeof(buf), 0, addr, len)) < 0) {
         perror("[ERROR] recvfrom");
         return -1;
     }
     if (additional_size > 0) {
-#include <string.h>
         uint16_t id;
         memcpy(&id, buf + 1, 2);
         printf(

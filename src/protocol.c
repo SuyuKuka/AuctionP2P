@@ -40,55 +40,68 @@ void buf_to_msg(const char *buf, message *msg, unsigned int flags) {
     int pos = 0;
 
     if (flags & CODE) msg->code = buf[pos++];
+#include <stdio.h>
+    printf("1\n");
 
     if (flags & ID) {
         msg->id = *((uint16_t *)(buf + pos));
         pos += sizeof(msg->id);
     }
+    printf("2\n");
 
     if (flags & LMESS) msg->lmess = buf[pos++];
+    printf("3\n");
 
     if (flags & LSIG) msg->lsig = buf[pos++];
+    printf("4\n");
 
     if (flags & MESS) {
         memcpy(msg->mess, buf + pos, msg->lmess);
         pos += msg->lmess;
     }
+    printf("5\n");
 
     if (flags & SIG) {
         memcpy(msg->sig, buf + pos, msg->lsig);
         pos += msg->lsig;
     }
+    printf("6\n");
 
     if (flags & IP) {
         memcpy(msg->ip, buf + pos, sizeof(msg->ip));
         pos += sizeof(msg->ip);
     }
+    printf("7\n");
 
     if (flags & PORT) {
         msg->port = *((uint16_t *)(buf + pos));
         pos += sizeof(msg->port);
     }
+    printf("8\n");
 
     if (flags & CLE) {
         memcpy(msg->cle, buf + pos, sizeof(msg->cle));
         pos += sizeof(msg->cle);
     }
+    printf("9\n");
 
     if (flags & NUMV) {
         msg->numv = *((uint32_t *)(buf + pos));
         pos += sizeof(msg->numv);
     }
+    printf("10\n");
 
     if (flags & PRIX) {
         msg->prix = *((uint32_t *)(buf + pos));
         pos += sizeof(msg->prix);
     }
+    printf("11\n");
 
     if (flags & NB) {
         msg->nb = *((uint16_t *)(buf + pos));
         pos += sizeof(msg->nb);
     }
+    printf("12\n");
 }
 
 size_t msg_size(int flags) {
