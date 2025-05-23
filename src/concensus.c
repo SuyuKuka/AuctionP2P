@@ -9,15 +9,18 @@
 // gere qu'un seul auction, l'adapté pour qu'il puisse en faire plusieurs
 int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_peers, message mess, uint16_t supervisor_id) {
     size_t count = 0;
-    message msg;
+    message msg = malloc(sizeof(message));
     printf("[INFO] Waiting for %zu validation(s)...\n", nb_peers);
+
+    struct sockaddr_in6 src_addr;
+    socklen_t src_len = sizeof(src_addr);
 
     while (count < nb_peers) {
         memset(&msg, 0, sizeof(msg));
 
         // Le superviseur attend les messages de validations
         if (recv_msg_from(&msg, CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG, sock,
-                          NULL, NULL) < 0) {
+                          (struct sockaddr *)&src_addr, &src_len) < 0) {
             perror("[ERROR] recv_msg_from");
             continue;
         }
@@ -45,6 +48,7 @@ int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_pe
     printf("[INFO] All %zu validation(s) received successfully.\n", nb_peers);
 
     // Créer le message de validation.
+    char sig_buf[] = "a";
     message validation_msg;
     memset(&validation_msg, 0, sizeof(validation_msg));
     validation_msg.code = 2;
@@ -54,7 +58,7 @@ int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_pe
     validation_msg.lmess = mess.lmess;
     validation_msg.mess = mess.mess;
     validation_msg.lsig = 1;
-    validation_msg.sig = "a";
+    validation_msg.sig = sig_buf;
     validation_msg.nb = count;
 
     int flags = CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG | NB;
