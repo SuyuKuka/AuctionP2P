@@ -9,7 +9,7 @@
 // gere qu'un seul auction, l'adapté pour qu'il puisse en faire plusieurs
 int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_peers, message mess, uint16_t supervisor_id) {
     size_t count = 0;
-    message msg = malloc(sizeof(message));
+    message msg;
     printf("[INFO] Waiting for %zu validation(s)...\n", nb_peers);
 
     struct sockaddr_in6 src_addr;
