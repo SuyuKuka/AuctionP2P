@@ -122,10 +122,6 @@ void *handle_auctions(void *params) {
     struct sockaddr_in6 auction_addr = p->auction_addr;
     dyn_array *active_auctions = p->active_auctions;
     linked_list *peers = p->peers;
-    for (node *n = peers->head; n != NULL; n = n->next) {
-        peer_data *peer = (peer_data *)n->data;
-        printf("==== PEER: %u\n", peer->id);
-    }
 
     // Création socket, listen les messages d'enchères
     int listen_sock = make_multicast_socket(auction_addr);
@@ -153,6 +149,10 @@ void *handle_auctions(void *params) {
 
         switch (code) {
             case AUC_INIT: {
+                for (node *n = peers->head; n != NULL; n = n->next) {
+                    peer_data *peer = (peer_data *)n->data;
+                    printf("==== PEER: %u\n", peer->id);
+                }
                 buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
 
                 uint32_t auction_num = ntohl(msg.numv);
