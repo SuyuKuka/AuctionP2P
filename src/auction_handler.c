@@ -15,10 +15,10 @@
 
 int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *counter,
                  uint32_t initial_price, dyn_array *active_auctions) {
-    (*counter)++;
-
     // Utilisation du compteur comme numéro de vente
-    uint32_t auction_num = *counter;
+    uint32_t auction_num = ntohs(p_data->id) + *counter + 1;
+
+    (*counter)++;
 
     // Préparation du message d'initialisation de vente (code 8)
     message auction_init_msg;
@@ -31,7 +31,7 @@ int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *
 
     if (send_msg_to(auction_init_msg, CODE | ID | NUMV | PRIX, p_data->udp_sock,
                     (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
-        fprintf(stderr, "Failed to send auction initialization\n");
+        fprintf(stderr, "Failed to send auction initialization.\n");
         return -1;
     }
 
@@ -50,7 +50,7 @@ int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *
         return -1;
     }
 
-    printf("Auction #%u initiated with initial price %u\n", auction_num, initial_price);
+    printf("Auction #%u initiated with initial price %u.\n", auction_num, initial_price);
     return 0;
 }
 
@@ -67,7 +67,7 @@ int place_bid(const pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_
 
     if (send_msg_to(bid_msg, CODE | ID | NUMV | PRIX, p_data->udp_sock,
                     (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
-        fprintf(stderr, "Failed to send bid\n");
+        fprintf(stderr, "Failed to send bid.\n");
         return -1;
     }
 
@@ -75,150 +75,63 @@ int place_bid(const pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_
 }
 
 void list_auctions(dyn_array *active_auctions) {
-    printf(" Active auctions:\n");
+    printf("  Available auctions:\n");
 
     if (active_auctions->len == 0) {
-        printf(" No active auctions\n");
+        printf("  No auctions available.\n");
         return;
     }
 
     const auction_info *auctions = (auction_info *)active_auctions->array;
     int count = active_auctions->len / sizeof(auction_info);
-    int active_count = 0;
 
     for (int i = 0; i < count; i++) {
         if (auctions[i].is_active) {
-            printf("   Auction #%u: current price %u (last bidder: %u)\n", auctions[i].numv,
+            printf("    [ACTIVE] Auction #%u: current price %u (last bidder: %u).\n",
+                   auctions[i].numv, auctions[i].current_price, auctions[i].current_bidder);
+        } else {
+            printf("    [CLOSED] Auction #%u: last price %u (last bidder: %u).\n", auctions[i].numv,
                    auctions[i].current_price, auctions[i].current_bidder);
-            active_count++;
         }
-    }
-
-    if (active_count == 0) {
-        printf(" No active auctions\n");
     }
 }
 
-int check_auction_exists(dyn_array *active_auctions, uint32_t auction_num) {
+/**
+ * @brief Vérifie si l'enchère existe dans la liste des enchères.
+ *
+ * @param[in]   active_auctions Tableau des enchères.
+ * @param[in]   auction_num Numéro de l'enchère.
+ * @param[in]   check_active Si `!= 0`, vérifie seulement les enchères actives.
+ *
+ * @return `1` si elle existe, `0` sinon.
+ */
+int check_auction_exists(dyn_array *active_auctions, uint32_t auction_num, int check_active) {
     const auction_info *auctions = (auction_info *)active_auctions->array;
     int count = active_auctions->len / sizeof(auction_info);
     for (int i = 0; i < count; i++) {
-        if (auctions[i].numv == auction_num && auctions[i].is_active) return 1;
+        if (auctions[i].numv == auction_num && (!check_active || auctions[i].is_active)) return 1;
     }
     return 0;
-}
-
-int send_auction_notice(pers_data *p_data, struct sockaddr_in6 auction_addr,
-                       uint32_t auction_num, uint32_t current_price) {
-    // Préparation du message de notification (code 11)
-    message notice_msg;
-    memset(&notice_msg, 0, sizeof(message));
-    
-    notice_msg.code = AUC_NOTICE;           // CODE = 11
-    notice_msg.id = p_data->id;             // ID du pair (superviseur)
-    notice_msg.numv = htonl(auction_num);   // Numéro de vente
-    notice_msg.prix = htonl(current_price); // Prix actuel
-    
-    if (send_msg_to(notice_msg, CODE | ID | NUMV | PRIX, 
-                  p_data->udp_sock, (struct sockaddr *)&auction_addr, 
-                  sizeof(auction_addr)) < 0) {
-        fprintf(stderr, "Failed to send auction notice\n");
-        return -1;
-    }
-    
-    return 0;
-}
-
-int send_auction_end(pers_data *p_data, struct sockaddr_in6 auction_addr,
-                    uint32_t auction_num, uint32_t final_price, uint16_t winner_id) {
-    // Préparation du message de fin d'enchère (code 12)
-    message end_msg;
-    memset(&end_msg, 0, sizeof(message));
-    
-    end_msg.code = AUC_END;             // CODE = 12
-    end_msg.id = htons(winner_id);      // ID du gagnant
-    end_msg.numv = htonl(auction_num);  // Numéro de vente
-    end_msg.prix = htonl(final_price);  // Prix final
-    
-    if (send_msg_to(end_msg, CODE | ID | NUMV | PRIX, 
-                  p_data->udp_sock, (struct sockaddr *)&auction_addr, 
-                  sizeof(auction_addr)) < 0) {
-        fprintf(stderr, "Failed to send auction end notification\n");
-        return -1;
-    }
-    
-    return 0;
-}
-
-void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr, 
-                           dyn_array *active_auctions) {
-    time_t current_time = time(NULL);
-    auction_info *auctions = (auction_info *)active_auctions->array;
-    int count = active_auctions->len / sizeof(auction_info);
-    
-    for (int i = 0; i < count; i++) {
-        // Vérifier uniquement les enchères actives dont ce pair est le superviseur
-        if (auctions[i].is_active && auctions[i].supervisor_id == ntohs(p_data->id)) {
-            time_t elapsed = current_time - auctions[i].last_activity;
-            
-            // Si t_3 secondes se sont écoulées depuis la dernière activité
-            if (elapsed >= T3_SECONDS) {
-                if (!auctions[i].notice_sent) {
-                    // Première notification (code 11)
-                    if (send_auction_notice(p_data, auction_addr, auctions[i].numv, 
-                                           auctions[i].current_price) == 0) {
-                        auctions[i].notice_sent = 1;
-                        auctions[i].first_notice_time = current_time;
-                    }
-                } else {
-                    // Deuxième notification et fin (code 12)
-                    time_t elapsed_since_notice = current_time - auctions[i].first_notice_time;
-                    if (elapsed_since_notice >= T3_SECONDS) {
-                        if (send_auction_end(p_data, auction_addr, auctions[i].numv, 
-                                           auctions[i].current_price, auctions[i].current_bidder) == 0) {
-                            auctions[i].is_active = 0;  // Enchère marquée comme terminée
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-void *auction_timer_thread(void *params) {
-    auction_handler_params *p = (auction_handler_params *)params;
-    pers_data *p_data = p->p_data;
-    struct sockaddr_in6 auction_addr = p->auction_addr;
-    dyn_array *active_auctions = p->active_auctions;
-    
-    while (1) {
-        // Vérification des enchères inactives
-        check_inactive_auctions(p_data, auction_addr, active_auctions);
-        sleep(5); // Vérification toutes les 5 secondes
-    }
-    
-    return NULL;
 }
 
 void *handle_auctions(void *params) {
+    printf("[DEBUG] === Starting auction thread ===\n");
+
     auction_handler_params *p = (auction_handler_params *)params;
     pers_data *p_data = p->p_data;
     struct sockaddr_in6 auction_addr = p->auction_addr;
     dyn_array *active_auctions = p->active_auctions;
-    uint32_t *auction_counter = p->auction_counter;
 
     // Création socket, listen les messages d'enchères
     int listen_sock = make_multicast_socket(auction_addr);
     if (listen_sock < 0) {
-        fprintf(stderr, "Failed to create multicast socket for auctions\n");
+        fprintf(stderr, "[ERROR] Failed to create multicast socket for auctions.\n");
         return NULL;
     }
 
     char buffer[1024];
     struct sockaddr_in6 sender_addr;
     socklen_t sender_len = sizeof(sender_addr);
-
-    printf("Listening for auction messages...\n");
 
     while (*p->running) {
         memset(buffer, 0, sizeof(buffer));
@@ -246,12 +159,7 @@ void *handle_auctions(void *params) {
                 uint16_t peer_id = ntohs(msg.id);
 
                 // Si la vente n'existe pas, l'ajouter à la liste
-                if (check_auction_exists(active_auctions, auction_num)) break;
-
-                // Mise à jour du compteur pour éviter conflits
-                if (auction_num > *auction_counter) {
-                    *auction_counter = auction_num;
-                }
+                if (check_auction_exists(active_auctions, auction_num, 0)) break;
 
                 auction_info new_auction;
                 new_auction.numv = auction_num;
@@ -262,11 +170,11 @@ void *handle_auctions(void *params) {
                 new_auction.is_active = 1;
 
                 if (concat_to_array(active_auctions, &new_auction, sizeof(auction_info)) < 0) {
-                    fprintf(stderr, " Failed to initialize auction by peer %u.\n", peer_id);
+                    fprintf(stderr, "  Failed to initialize auction by peer %u.\n", peer_id);
                     break;
                 }
 
-                printf(" New auction #%u initiated by peer %u with current price %u.\n",
+                printf("  New auction #%u initiated by peer %u with current price %u.\n",
                        auction_num, peer_id, price);
                 break;
             }
@@ -279,12 +187,14 @@ void *handle_auctions(void *params) {
                 uint16_t bidder_id = ntohs(msg.id);
 
                 // Si l'enchère n'existe pas, on ignore le message.
-                if (!check_auction_exists(active_auctions, auction_num)) {
-                    printf(" Ignoring bid for non-existent or finished auction #%u\n", auction_num);
+                if (!check_auction_exists(active_auctions, auction_num, 1)) {
+                    printf("  Ignoring bid for non-existent or finished auction #%u.\n",
+                           auction_num);
                     break;
                 }
 
-                printf(" Bid of %u on auction #%u by peer %u\n", bid_price, auction_num, bidder_id);
+                printf("  Bid of %u on auction #%u by peer %u.\n", bid_price, auction_num,
+                       bidder_id);
 
                 // Si ce pair est superviseur de la vente, rediff l'enchère
                 auction_info *auctions = (auction_info *)active_auctions->array;
@@ -310,10 +220,10 @@ void *handle_auctions(void *params) {
                                             sizeof(auction_addr)) < 0) {
                                 fprintf(stderr, "Failed to send bid validation\n");
                             } else {
-                                printf(" Validated new bid on auction #%u\n", auction_num);
+                                printf("  Validated new bid on auction #%u.\n", auction_num);
                             }
                         } else {
-                            printf(" Rejected invalid bid on auction #%u (price too low)\n",
+                            printf("  Rejected invalid bid on auction #%u (price too low).\n",
                                    auction_num);
 
                             // Envoi d'un message de rejet (AUC_REJECT = 15)
@@ -323,25 +233,9 @@ void *handle_auctions(void *params) {
                             if (send_msg_to(reject_msg, flags, p_data->udp_sock,
                                             (struct sockaddr *)&auction_addr,
                                             sizeof(auction_addr)) < 0) {
-                                fprintf(stderr, "Failed to send bid rejection\n");
+                                fprintf(stderr, "Failed to send bid rejection.\n");
                             }
                         }
-
-                        // Envoi d'un message d'initialisation d'enchère pour les pairs
-                        // arrivés en cours de route.
-                        message init_msg = {0};
-                        init_msg.code = AUC_INIT;
-                        init_msg.id = p_data->id;
-                        init_msg.numv = htonl(auction_num);
-                        init_msg.prix = htonl(auctions[i].current_price);
-
-                        if (send_msg_to(init_msg, flags, p_data->udp_sock,
-                                        (struct sockaddr *)&auction_addr,
-                                        sizeof(auction_addr)) < 0) {
-                            fprintf(stderr,
-                                    "[ERROR] Failed to send auction reinitialization message.\n");
-                        }
-                        break;
                     }
                 }
                 break;
@@ -353,7 +247,7 @@ void *handle_auctions(void *params) {
                 uint32_t bid_price = ntohl(msg.prix);
                 uint16_t bidder_id = ntohs(msg.id);
 
-                printf(" Supervisor validated bid of %u on auction #%u by peer %u\n", bid_price,
+                printf("  Supervisor validated bid of %u on auction #%u by peer %u.\n", bid_price,
                        auction_num, bidder_id);
 
                 // TODO: processus de consensus ici, post code 10
@@ -367,26 +261,28 @@ void *handle_auctions(void *params) {
                         auctions[i].current_price = bid_price;
                         auctions[i].current_bidder = bidder_id;
                         auctions[i].last_activity = time(NULL);
-                        auctions[i].notice_sent = 0; 
+                        auctions[i].notice_sent = 0;
                         break;
                     }
                 }
                 break;
             }
 
-            case AUC_NOTICE: { // Première notification de prix final (11)
+            case AUC_NOTICE: {  // Première notification de prix final (11)
                 buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
                 uint32_t auction_num = ntohl(msg.numv);
                 uint16_t supervisor_id = ntohs(msg.id);
                 uint32_t current_price = ntohl(msg.prix);
 
-                printf(" First notice of ending auction #%u from supervisor %u with current price at %u\n", 
-                        auction_num, supervisor_id, current_price);
+                printf(
+                    "  First notice of ending auction #%u from supervisor %u with current price at "
+                    "%u.\n",
+                    auction_num, supervisor_id, current_price);
 
                 // Mise à jour de l'état de l'enchère
                 auction_info *auctions = (auction_info *)active_auctions->array;
                 int count = active_auctions->len / sizeof(auction_info);
-                
+
                 for (int i = 0; i < count; i++) {
                     if (auctions[i].numv == auction_num && auctions[i].is_active) {
                         // Activation du flag de la première notification
@@ -403,7 +299,7 @@ void *handle_auctions(void *params) {
                 uint32_t final_price = ntohl(msg.prix);
                 uint16_t winner_id = ntohs(msg.id);
 
-                printf(" Auction #%u ended, won by peer %u with final price %u\n", auction_num,
+                printf("  Auction #%u ended, won by peer %u with final price %u.\n", auction_num,
                        winner_id, final_price);
 
                 // Voir si TODO: implémentation du processus de consensus ici ?
@@ -425,7 +321,7 @@ void *handle_auctions(void *params) {
                 buf_to_msg(buffer, &msg, CODE | ID);
                 uint16_t leaving_peer_id = ntohs(msg.id);
 
-                printf(" Peer %u is leaving the auction system\n", leaving_peer_id);
+                printf("  Peer %u is leaving the auction system.\n", leaving_peer_id);
                 // TODO: Implémenter la gestion d'un pair quittant le système
                 break;
             }
@@ -435,7 +331,7 @@ void *handle_auctions(void *params) {
                 uint32_t auction_num = ntohl(msg.numv);
                 uint16_t supervisor_id = ntohs(msg.id);
 
-                printf(" Concurrency issue detected with auction #%u from supervisor %u\n",
+                printf("  Concurrency issue detected with auction #%u from supervisor %u.\n",
                        auction_num, supervisor_id);
                 // TODO: Implémenter la gestion de concurrence
                 break;
@@ -447,7 +343,7 @@ void *handle_auctions(void *params) {
                 uint32_t rejected_price = ntohl(msg.prix);
                 uint16_t bidder_id = ntohs(msg.id);
 
-                printf(" Bid of %u on auction #%u by peer %u was rejected\n", rejected_price,
+                printf("  Bid of %u on auction #%u by peer %u was rejected.\n", rejected_price,
                        auction_num, bidder_id);
                 break;
             }
@@ -457,8 +353,8 @@ void *handle_auctions(void *params) {
                 uint32_t auction_num = ntohl(msg.numv);
                 uint16_t reporting_peer_id = ntohs(msg.id);
 
-                printf(" Supervisor for auction #%u is reported missing by peer %u\n", auction_num,
-                       reporting_peer_id);
+                printf("  Supervisor for auction #%u is reported missing by peer %u.\n",
+                       auction_num, reporting_peer_id);
                 // TODO: Implémentation de la gestion d'absence du superviseur
                 break;
             }
@@ -469,5 +365,132 @@ void *handle_auctions(void *params) {
     }
 
     close(listen_sock);
+    return NULL;
+}
+
+/**************************************************************************************************
+ *                                     Gestion fin de vente.                                      *
+ **************************************************************************************************/
+
+/**
+ * @brief Envoie une première notification de fin d'enchère si `isFinalNotice == 0`.
+ * Sinon, envoie la notification de fin d'enchère.
+ *
+ * Cette fonction envoie un message avec le code 11 ou 12 (`AUC_NOTICE` ou `AUC_END`)
+ * pour notifier que le temps d'inactivité a dépassé `t_3` secondes et que l'enchère
+ * pourrait bientôt se terminer.
+ *
+ * @param[in]   p_data Pointeur vers les données personnelles du pair
+ * @param[in]   auction_addr Adresse multicast pour les messages d'enchères
+ * @param[in]   auction_num Numéro de l'enchère
+ * @param[in]   current_price Prix actuel de l'enchère
+ * @param[in]   is_final_notice Si c'est la dernière notification de fin
+ * @param[in]   winner_id ID du gagnant de l'enchère
+ *
+ * @return 0 en cas de succès, -1 en cas d'erreur
+ */
+int send_auction_end_notice(const pers_data *p_data, struct sockaddr_in6 auction_addr,
+                            uint32_t auction_num, uint32_t current_price, int is_final_notice,
+                            uint16_t winner_id) {
+    // Préparation du message de notification (code 11 ou 12)
+    message notice_msg;
+    memset(&notice_msg, 0, sizeof(message));
+
+    notice_msg.numv = htonl(auction_num);    // Numéro de vente
+    notice_msg.prix = htonl(current_price);  // Prix actuel
+
+    if (is_final_notice) {
+        notice_msg.code = AUC_END;         // CODE = 12
+        notice_msg.id = htons(winner_id);  // ID du gagnant
+    } else {
+        notice_msg.code = AUC_NOTICE;  // CODE = 11
+        notice_msg.id = p_data->id;    // ID du pair (superviseur)
+    }
+
+    if (send_msg_to(notice_msg, CODE | ID | NUMV | PRIX, p_data->udp_sock,
+                    (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
+        fprintf(stderr, "Failed to send auction notice\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * @brief Vérifie les enchères inactives et envoie des notifications.
+ *
+ * Cette fonction parcourt la liste des enchères actives et vérifie si
+ * certaines d'entre elles n'ont pas eu d'activité depuis t_3 secondes.
+ * Si oui, elle envoie une notification appropriée.
+ * Une demande d'initialisation d'enchère est envoyée pour les pairs
+ * arrivés en cours d'enchères.
+ *
+ * @param[in]   p_data Pointeur vers les données personnelles du pair
+ * @param[in]   auction_addr Adresse multicast pour les messages d'enchères
+ * @param[in]   active_auctions Tableau dynamique contenant la liste des enchères actives
+ */
+void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr,
+                             dyn_array *active_auctions) {
+    time_t current_time = time(NULL);
+    auction_info *auctions = (auction_info *)active_auctions->array;
+    int count = active_auctions->len / sizeof(auction_info);
+
+    for (int i = 0; i < count; i++) {
+        auction_info *auction = &auctions[i];
+
+        // Vérifier uniquement les enchères actives dont ce pair est le superviseur
+        if (!auction->is_active || auction->supervisor_id != ntohs(p_data->id)) continue;
+
+        // Vérifie si c'est le moment d'envoyer la première/dernière notice de fin
+        time_t elapsed = current_time - auctions[i].last_activity;
+        if (elapsed < T3_SECONDS) continue;
+
+        // Vérifie si c'est le moment d'envoyer la notice de fin
+        if (auction->notice_sent) {
+            time_t elapsed_since_notice = current_time - auctions[i].first_notice_time;
+            if (elapsed_since_notice < T3_SECONDS) continue;
+        }
+
+        // Envoi de la notification (code 11 ou 12)
+        if (send_auction_end_notice(p_data, auction_addr, auction->numv, auction->current_price,
+                                    auction->notice_sent, auction->current_bidder) == 0) {
+            if (auction->notice_sent == 0) {
+                auction->notice_sent = 1;
+                auction->first_notice_time = current_time;
+
+                // Envoi d'un message d'initialisation d'enchère pour les pairs
+                // arrivés en cours de route.
+                message init_msg;
+                memset(&init_msg, 0, sizeof(message));
+                init_msg.code = AUC_INIT;
+                init_msg.id = p_data->id;
+                init_msg.numv = htonl(auction->numv);
+                init_msg.prix = htonl(auction->current_price);
+
+                if (send_msg_to(init_msg, CODE | ID | NUMV | PRIX, p_data->udp_sock,
+                                (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
+                    fprintf(stderr, "Failed to send auction reinitialization message.\n");
+                }
+            } else {
+                auction->is_active = 0;  // Enchère marquée comme terminée
+            }
+        }
+    }
+}
+
+void *auction_timer_thread(void *params) {
+    printf("[DEBUG] === Starting auction timer thread ===\n");
+
+    auction_handler_params *p = (auction_handler_params *)params;
+    pers_data *p_data = p->p_data;
+    struct sockaddr_in6 auction_addr = p->auction_addr;
+    dyn_array *active_auctions = p->active_auctions;
+
+    while (p->running) {
+        // Vérification des enchères inactives
+        check_inactive_auctions(p_data, auction_addr, active_auctions);
+        sleep(5);  // Vérification toutes les 5 secondes
+    }
+
     return NULL;
 }
