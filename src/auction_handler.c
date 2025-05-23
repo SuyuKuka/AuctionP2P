@@ -278,13 +278,14 @@ void *handle_auctions(void *params) {
                 // Récupérer l'id et le peer du superviseur 
                 printf("Peer id : %u\n", ntohs(p_data->id));
                 printf("Auction num msg : %u\n", auction_num);
+                printf("Count : %d\n", count);
 
                 for (int i = 0; i < count; i++) {
                     printf("Supervisor id: %u\n", auctions[i].supervisor_id);
                     printf("Auction num: %u\n", auctions[i].numv);
-                    printf("Is active: %d\n", auctions[i].is_active);
                     if (auctions[i].numv == auction_num) {
                         for (node *n = peers->head; n != NULL; n = n->next) {
+                            printf("Peer id boucle: %u\n", n->id);
                             if (n->id == auctions[i].supervisor_id) {
                                 supervisor_id = auctions[i].supervisor_id;
                                 supervisor_peer = n->data;
