@@ -297,18 +297,16 @@ void *handle_auctions(void *params) {
 
                 printf("Supervisor is %u\n", supervisor_id);
 
-                printf("%hhn:%u\n" ,supervisor_peer->ip, supervisor_peer->port);
-
                 // Créer l'addresse du superviseur
-                // struct sockaddr_in6 addr;
-                // memset(&addr, 0, sizeof(addr));
-                // addr.sin6_family = AF_INET6;
-                // memcpy(&addr.sin6_addr.s6_addr, supervisor_peer->ip, sizeof(addr.sin6_addr.s6_addr));
-                // addr.sin6_port = supervisor_peer->port;
+                struct sockaddr_in6 addr;
+                memset(&addr, 0, sizeof(addr));
+                addr.sin6_family = AF_INET6;
+                memcpy(&addr.sin6_addr.s6_addr, supervisor_peer->ip, sizeof(addr.sin6_addr.s6_addr));
+                addr.sin6_port = supervisor_peer->port;
 
                 // Envoi de la validation au superviseur
                 printf("[INFO] %u is sending a new validation bid on auction\n", ntohs(p_data->id));
-                // send_validation_to_supervisor(p_data->udp_sock, (struct sockaddr *)&addr, msg);
+                send_validation_to_supervisor(p_data->udp_sock, (struct sockaddr *)&addr, msg);
 
                 // Recevoir la confirmation du superviseur
                 message msg_confirmation;
