@@ -5,7 +5,7 @@
 #include "netio.h"
 #include "protocol.h"
 
-int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, linked_list peers,
+int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, linked_list *peers,
                                message *mess, int flags) {
     // Buffer pour le champ mess
     dyn_array msg_buf;
@@ -20,7 +20,7 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
     int msg_flags = CODE | ID | LMESS | MESS | LSIG | SIG;
     struct pollfd fd = {.fd = p_data.udp_serv_sock, .events = POLLIN};
     // Le superviseur attend les messages de validations
-    printf("[DEBUG] CONSENSUS: Waiting for %zu validation(s)...\n", peers.size);
+    printf("[DEBUG] CONSENSUS: Waiting for %zu validation(s)...\n", peers->size);
     while ((poll_ret = poll(&fd, 1, MILLI(5))) > 0) {
         if (fd.revents & POLLIN) {
             message msg;
@@ -36,7 +36,7 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
             // Vérification de la signature
             uint16_t peer_id = ntohs(msg.id);
             const node *peer;
-            if ((peer = get_node(peer_id, &peers)) == NULL) {
+            if ((peer = get_node(peer_id, peers)) == NULL) {
                 printf("[ERROR] CONSENSUS: Unknown peer id: %d\n", peer_id);
                 continue;
             }
@@ -56,14 +56,14 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
     }
 
     // Vérifie s'il manque des pairs
-    for (node *n = peers.head; n != NULL; n = n->next) {
+    for (node *n = peers->head; n != NULL; n = n->next) {
         if (!get_node(n->id, &checked_list)) goto error;
     }
 
     if (poll_ret < 0) {
         perror("[ERROR] poll");
         goto error;
-    } else if (poll_ret == 0 && peers.size != checked_list.size) {
+    } else if (poll_ret == 0 && peers->size != checked_list.size) {
         printf("[DEBUG] CONSENSUS: Supervisor timed out\n");
         goto error;
     }
@@ -86,7 +86,7 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
     }
 
     // Toutes les validations sont bien arrivées
-    printf("[DEBUG] CONSENSUS: All %zu validation(s) received successfully.\n", peers.size);
+    printf("[DEBUG] CONSENSUS: All %zu validation(s) received successfully.\n", peers->size);
 
     free_dyn_array(msg_buf);
     free_list(&checked_list);

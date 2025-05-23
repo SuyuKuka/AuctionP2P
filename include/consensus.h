@@ -9,7 +9,7 @@
 
 #include "protocol.h"
 
-int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, linked_list peers,
+int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, linked_list *peers,
                                message *mess, int flags);
 
 int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, message *msg,
