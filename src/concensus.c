@@ -10,7 +10,7 @@
 int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_peers, message mess, uint16_t supervisor_id) {
     size_t count = 0;
     message msg;
-    printf("[INFO] Waiting for %zu validation(s)...\n", nb_peers);
+    printf("[INFO] Waiting for %zu validation(s)...\n", nb_peers); return 0;
 
     while (count < nb_peers) {
         // Le superviseur attend les messages de validations
