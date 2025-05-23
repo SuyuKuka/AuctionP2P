@@ -180,12 +180,12 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
     printf("[DEBUG] CONSENSUS: Sent validation message to supervisor, awaiting response...\n");
 
     char buf[1024];
-    char sig_buf[1024];
+    char following_buf[1024];
     message confirmation_msg;
     message following_msg;
     message sig_msg;
     memset(buf, 0, sizeof(buf));
-    memset(sig_buf, 0, sizeof(sig_buf));
+    memset(following_buf, 0, sizeof(following_buf));
     memset(&confirmation_msg, 0, sizeof(confirmation_msg));
     memset(&following_msg, 0, sizeof(following_msg));
     memset(&sig_msg, 0, sizeof(sig_msg));
@@ -224,29 +224,31 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
     if (confirmation_msg.code == CONS_CONF && ntohs(confirmation_msg.id) == supervisor_id) {
         uint16_t following_nb = 0;
         if (confirmation_nb > 3) {
-            if (recvfrom(mult_sock, sig_buf, sizeof(sig_buf), 0, NULL, NULL) < 0) {
+            if (recvfrom(mult_sock, following_buf, sizeof(following_buf), 0, NULL, NULL) < 0) {
                 perror("[ERROR] recvfrom");
                 goto error;
             }
-            if (sig_buf[0] == CONS_CONF_FOLLOW && ntohs(confirmation_msg.id) == supervisor_id) {
-                buf_to_msg(sig_buf, &following_msg, CODE | ID | NB);
+            if (following_buf[0] == CONS_CONF_FOLLOW &&
+                ntohs(confirmation_msg.id) == supervisor_id) {
+                buf_to_msg(following_buf, &following_msg, CODE | ID | NB);
                 following_nb = ntohs(following_msg.nb);
             }
         }
 
         for (size_t i = 0; i < confirmation_nb + following_nb; i++) {
-            if (i == 3) sig_msg_offset = 0;
-
             if (i < 3) {
-                printf("[DEBUG] CONSENSUS: Checking signature #%zu...\n", i + 1);
                 buf_to_msg(buf + header_size + sig_msg_offset, &sig_msg, ID | LSIG | SIG);
+                printf("[DEBUG] CONSENSUS: Checking signature #%zu of peer %d...\n", i + 1,
+                       ntohs(sig_msg.id));
             } else {
+                if (i == 3) sig_msg_offset = 0;
                 printf(
                     "[DEBUG] CONSENSUS: Confirmation message split, checking signature #%zu...\n",
                     i + 1);
-                buf_to_msg(sig_buf + following_header_size + sig_msg_offset, &sig_msg,
+                buf_to_msg(following_buf + following_header_size + sig_msg_offset, &sig_msg,
                            ID | LSIG | SIG);
             }
+            printf("OFFSET: %zu\n", sig_msg_offset);
             sig_msg_offset += msg_size(ID | LSIG) + sig_msg.lsig;
 
             const node *peer;
