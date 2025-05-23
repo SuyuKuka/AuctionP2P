@@ -114,8 +114,6 @@ void buf_to_msg(const char *buf, message *msg, unsigned int flags);
 /**
  * @brief Renvoie la taille des données d'un message spécifiées par les `flags`.
  *
- * Ne prend pas en compte la taille de `MESS` et `SIG`.
- *
  * @param[in]   flags Flags.
  */
 size_t msg_size(int flags);
