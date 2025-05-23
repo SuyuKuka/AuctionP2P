@@ -252,7 +252,7 @@ void *handle_auctions(void *params) {
 
                 // Infos du superviseur
                 for (node *n = peers->head; n != NULL; n = n->next) {
-                    if (ntohs(n->id) == supervisor_id) supervisor_peer = (peer_data *)n->data;
+                    if (n->id == supervisor_id) supervisor_peer = (peer_data *)n->data;
                 }
                 if (supervisor_id != p_data->id && supervisor_peer == NULL) {
                     printf("[ERROR] Supervisor for auction #%u not found in peers list.\n",
