@@ -56,6 +56,7 @@ void buf_to_msg(const char *buf, message *msg, unsigned int flags) {
     printf("4\n");
 
     if (flags & MESS) {
+        printf("lmess: %d, pos: %d\n", msg->lmess, pos);
         memcpy(msg->mess, buf + pos, msg->lmess);
         pos += msg->lmess;
     }
