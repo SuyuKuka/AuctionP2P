@@ -29,13 +29,12 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
                 fprintf(stderr, "[ERROR] recvfrom\n");
                 continue;
             }
-            printf("[DEBUG] CONSENSUS: Message received, verifying code...\n");
             if (msg.code != CONS_VAL) continue;
-            uint16_t peer_id = ntohs(msg.id);
 
             printf("[DEBUG] CONSENSUS: Validation message received, verifying signature...\n");
 
             // Vérification de la signature
+            uint16_t peer_id = ntohs(msg.id);
             const node *peer;
             if ((peer = get_node(peer_id, &peers)) == NULL) continue;
             if (verify_signature(msg_buf.array, msg.sig, ((peer_data *)peer->data)->cle) < 0)
@@ -69,9 +68,9 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
     validation_msg.code = CONS_CONF;
     validation_msg.id = p_data.id;
     validation_msg.lmess = msg_buf.len;
-    validation_msg.mess = msg_buf.array;
+    memcpy(validation_msg.mess, msg_buf.array, validation_msg.lmess);
     validation_msg.lsig = 0;
-    validation_msg.sig = "";
+    memcpy(validation_msg.sig, "", validation_msg.lsig);
 
     // Multidiffuse le message avec le code 2
     if (send_msg_to(validation_msg, CODE | ID | LMESS | MESS | LSIG | SIG, p_data.udp_sock,
@@ -109,9 +108,9 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
     validation_msg.code = CONS_VAL;
     validation_msg.id = p_data.id;
     validation_msg.lmess = msg_buf.len;
-    validation_msg.mess = msg_buf.array;
+    memcpy(validation_msg.mess, msg_buf.array, validation_msg.lmess);
     validation_msg.lsig = 0;
-    validation_msg.sig = "";
+    memcpy(validation_msg.sig, "", validation_msg.lsig);
 
     // Envoi du message via UDP
     if (send_msg_to(validation_msg, CODE | ID | LMESS | MESS | LSIG | SIG, p_data.udp_sock,

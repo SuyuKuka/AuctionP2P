@@ -56,8 +56,8 @@ typedef struct message {
     uint16_t id;        /* Identifiant. */
     uint8_t lmess;      /* Longueur du message. */
     uint8_t lsig;       /* Longueur de la signature. */
-    char *mess;         /* Message. */
-    char *sig;          /* Signature. */
+    char mess[512];     /* Message. */
+    char sig[512];      /* Signature. */
     uint8_t ip[16];     /* Adresse IP. */
     uint16_t port;      /* Port. */
     char cle[KEY_SIZE]; /* Clé. */

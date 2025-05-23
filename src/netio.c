@@ -110,29 +110,14 @@ error:
 
 int recv_msg_from(message *msg, int flags, size_t additional_size, int sock, struct sockaddr *addr,
                   socklen_t *len) {
-    if (additional_size > 0) {
-        printf("[DEBUG] CONSENSUS: Supervisor recv_msg_from\n");
-    }
-
     char buf[msg_size(flags) + additional_size];
     memset(buf, 0, sizeof(buf));
-    int r;
-    if ((r = recvfrom(sock, buf, sizeof(buf), 0, addr, len)) < 0) {
+
+    if (recvfrom(sock, buf, sizeof(buf), 0, addr, len) < 0) {
         perror("[ERROR] recvfrom");
         return -1;
     }
-    if (additional_size > 0) {
-        uint16_t id;
-        memcpy(&id, buf + 1, 2);
-        printf(
-            "[DEBUG] CONSENSUS: Supervisor recv_msg_from END: %d, msg_size: %zu, code: %d, id: "
-            "%d, lmess: %d\n",
-            r, msg_size(flags), buf[0], ntohs(id), buf[4]);
-    }
     buf_to_msg(buf, msg, flags);
-    if (additional_size > 0) {
-        printf("[DEBUG] CONSENSUS: Supervisor buf_to_msg END\n");
-    }
 
     return 0;
 }
