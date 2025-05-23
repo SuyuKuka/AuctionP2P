@@ -303,6 +303,9 @@ void *handle_auctions(void *params) {
                     printf("[INFO] %u is sending a new validation bid on auction\n",
                            ntohs(p_data->id));
                     send_validation_to_supervisor(p_data->udp_sock, (struct sockaddr *)&addr, msg);
+                } else {
+                    supervisor_id = p_data->id;
+                    supervisor_peer = NULL;
                 }
 
                 printf("After sending...\n");
