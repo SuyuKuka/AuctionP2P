@@ -219,7 +219,7 @@ void *handle_auctions(void *params) {
                             } else {
                                 if (auctions[i].supervisor_id == ntohs(p_data->id)) {
                                     printf("[INFO] %u is waiting for new validation bid on auction\n", auctions[i].supervisor_id);
-                                    supervisor_wait_for_validation(p_data->udp_sock,
+                                    supervisor_wait_for_validation(p_data->udp_serv_sock,
                                                                 (struct sockaddr *)&auction_addr,
                                                                 peers->size,
                                                                 relay_msg,
@@ -265,7 +265,6 @@ void *handle_auctions(void *params) {
             }
 
             case AUC_SUP_REDIFF: {  // Rediff de l'enchère par le superviseur
-                sleep(100 * 1000); // Attente de 100ms pour laisser le superviseur le temps de se mettre en mode écoute
                 buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
                 uint32_t auction_num = ntohl(msg.numv);
                 uint32_t bid_price = ntohl(msg.prix);
@@ -279,7 +278,7 @@ void *handle_auctions(void *params) {
                 message msg_confirmation;
                 struct sockaddr_in src_addr;
                 socklen_t len = sizeof(src_addr);
-                recv_msg_from(&msg_confirmation, CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG, p_data->udp_sock,
+                recv_msg_from(&msg_confirmation, CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG, p_data->udp_serv_sock,
                           (struct sockaddr *)&src_addr, &len);
                 
                 // Si c’est une validation pour la bonne enchère

@@ -12,15 +12,12 @@ int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_pe
     message msg;
     printf("[INFO] Waiting for %zu validation(s)...\n", nb_peers);
 
-    struct sockaddr_in src_addr;
-    socklen_t len = sizeof(src_addr);
-
     while (count < nb_peers) {
         memset(&msg, 0, sizeof(msg));
 
         // Le superviseur attend les messages de validations
         if (recv_msg_from(&msg, CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG, sock,
-                          (struct sockaddr *)&src_addr, &len) < 0) {
+                          NULL, NULL) < 0) {
             perror("[ERROR] recv_msg_from");
             continue;
         }
