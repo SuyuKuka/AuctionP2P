@@ -275,7 +275,7 @@ void *handle_auctions(void *params) {
                 auction_info *auctions = (auction_info *)active_auctions->array;
                 int count = active_auctions->len / sizeof(auction_info);
 
-                // Récupérer l'id du superviseur
+                // Récupérer l'id et le peer du superviseur 
                 printf("Peer id : %u\n", ntohs(p_data->id));
                 printf("Auction num msg : %u\n", auction_num);
 
@@ -283,22 +283,18 @@ void *handle_auctions(void *params) {
                     printf("Supervisor id: %u\n", auctions[i].supervisor_id);
                     printf("Auction num: %u\n", auctions[i].numv);
                     printf("Is active: %d\n", auctions[i].is_active);
-                    if (auctions[i].numv == auction_num &&
-                        auctions[i].supervisor_id == ntohs(p_data->id) && auctions[i].is_active) {
-                        supervisor_id = auctions[i].supervisor_id;
-                        break;
+                    if (auctions[i].numv == auction_num && auctions[i].is_active) {
+                        for (node *n = peers->head; n != NULL; n = n->next) {
+                            if (n->id == auctions[i].supervisor_id) {
+                                supervisor_id = auctions[i].supervisor_id;
+                                supervisor_peer = n->data;
+                                break;
+                            }
+                        }
                     }
                 }
 
                 printf("Supervisor is %u\n", supervisor_id);
-
-                // // Récupérer le peer du superviseur
-                for (node *n = peers->head; n != NULL; n = n->next) {
-                    if (n->id == supervisor_id) {
-                        supervisor_peer = n->data;
-                        break;
-                    }
-                }
 
                 printf("%hhn:%u\n" ,supervisor_peer->ip, supervisor_peer->port);
 
