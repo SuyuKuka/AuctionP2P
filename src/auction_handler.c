@@ -283,7 +283,7 @@ void *handle_auctions(void *params) {
                     printf("Supervisor id: %u\n", auctions[i].supervisor_id);
                     printf("Auction num: %u\n", auctions[i].numv);
                     printf("Is active: %d\n", auctions[i].is_active);
-                    if (auctions[i].numv == auction_num && auctions[i].is_active) {
+                    if (auctions[i].numv == auction_num) {
                         for (node *n = peers->head; n != NULL; n = n->next) {
                             if (n->id == auctions[i].supervisor_id) {
                                 supervisor_id = auctions[i].supervisor_id;
