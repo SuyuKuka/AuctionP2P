@@ -24,7 +24,7 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
     while ((poll_ret = poll(&fd, 1, MILLI(5))) > 0) {
         if (fd.revents & POLLIN) {
             message msg;
-            if (recv_msg_from(&msg, msg_flags, 400, p_data.udp_serv_sock, NULL, NULL) < 0) {
+            if (recv_msg_from(&msg, msg_flags, 1024, p_data.udp_serv_sock, NULL, NULL) < 0) {
                 fprintf(stderr, "[ERROR] recvfrom\n");
                 continue;
             }
