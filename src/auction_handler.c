@@ -149,10 +149,6 @@ void *handle_auctions(void *params) {
 
         switch (code) {
             case AUC_INIT: {
-                for (node *n = peers->head; n != NULL; n = n->next) {
-                    peer_data *peer = (peer_data *)n->data;
-                    printf("==== PEER: %u\n", peer->id);
-                }
                 buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
 
                 uint32_t auction_num = ntohl(msg.numv);
@@ -256,7 +252,7 @@ void *handle_auctions(void *params) {
 
                 // Infos du superviseur
                 for (node *n = peers->head; n != NULL; n = n->next) {
-                    if (n->id == supervisor_id) supervisor_peer = (peer_data *)n->data;
+                    if (ntohs(n->id) == supervisor_id) supervisor_peer = (peer_data *)n->data;
                 }
                 if (supervisor_id != ntohs(p_data->id) && supervisor_peer == NULL) {
                     printf("[ERROR] Supervisor for auction #%u not found in peers list.\n",
