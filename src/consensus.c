@@ -17,18 +17,18 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
     memset(&checked_list, 0, sizeof(checked_list));
 
     int poll_ret;
+    int msg_flags = CODE | ID | LMESS | MESS | LSIG | SIG;
     struct pollfd fd = {.fd = p_data.udp_serv_sock, .events = POLLIN};
     // Le superviseur attend les messages de validations
     printf("[DEBUG] CONSENSUS: Waiting for %zu validation(s)...\n", peers.size);
     while ((poll_ret = poll(&fd, 1, MILLI(5))) > 0) {
         if (fd.revents & POLLIN) {
             message msg;
-            printf("[DEBUG] CONSENSUS: Message received, verifying code...\n");
-            if (recv_msg_from(&msg, CODE | ID | LMESS | MESS | LSIG | SIG, p_data.udp_serv_sock,
-                              NULL, NULL) < 0) {
-                perror("[ERROR] recvfrom");
+            if (recv_msg_from(&msg, msg_flags, p_data.udp_serv_sock, NULL, NULL) < 0) {
+                fprintf(stderr, "[ERROR] recvfrom\n");
                 continue;
             }
+            printf("[DEBUG] CONSENSUS: Message received, verifying code...\n");
             if (msg.code != CONS_VAL) continue;
             uint16_t peer_id = ntohs(msg.id);
 
