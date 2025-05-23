@@ -7,11 +7,9 @@
 #include "netio.h"
 
 // gere qu'un seul auction, l'adapté pour qu'il puisse en faire plusieurs
-// sock udp pour multidiffuser
-int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_peers, message *mess, uint16_t supervisor_id) {
+int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_peers, message mess, uint16_t supervisor_id) {
     size_t count = 0;
     message msg;
-    // TODO: fix nb_peers
     printf("[INFO] Waiting for %zu validation(s)...\n", nb_peers);
 
     struct sockaddr_in src_addr;
@@ -28,13 +26,13 @@ int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_pe
         }
 
         // Si c’est une validation pour la bonne enchère
-        if (msg.code == 1 && msg.numv == mess->numv) {
+        if (msg.code == 1 && msg.numv == mess.numv) {
             printf("[DEBUG] Received validation from peer ID %d\n", ntohs(msg.id));
             count++;
         }
 
         // Si c’est une validation pour une autre enchère, on l’ignore proprement
-        else if (msg.code == 1 && msg.numv != mess->numv) {
+        else if (msg.code == 1 && msg.numv != mess.numv) {
             printf("[INFO] Ignored validation for another auction (numv=%d)\n", ntohl(msg.numv));
         }
 
@@ -52,17 +50,18 @@ int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_pe
     memset(&validation_msg, 0, sizeof(validation_msg));
     validation_msg.code = 2;
     validation_msg.id = htons(supervisor_id);
-    validation_msg.numv = mess->numv;
-    validation_msg.prix = mess->prix;
-    validation_msg.lmess = mess->lmess;
-    validation_msg.mess = mess->mess;
+    validation_msg.numv = mess.numv;
+    validation_msg.prix = mess.prix;
+    validation_msg.lmess = mess.lmess;
+    validation_msg.mess = mess.mess;
     validation_msg.lsig = 1;
-    validation_msg.sig = "superviseur";
+    validation_msg.sig = "a";
     validation_msg.nb = count;
 
+    int flags = CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG | NB;
+
     // Multidiffuse le message avec le code 2
-    if (send_msg_to(validation_msg, CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG | NB,
-                    sock, addr, sizeof(struct sockaddr_in)) < 0) {
+    if (send_msg_to(validation_msg, flags, sock, addr, sizeof(struct sockaddr_in6)) < 0) {
         perror("[ERROR] send_msg_to");
         return -1;
     }
@@ -70,17 +69,16 @@ int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_pe
     return 0;
 }
 
-
-int send_validation_to_supervisor(int sock, struct sockaddr *addr, message *msg) {
+int send_validation_to_supervisor(int sock, struct sockaddr *addr, message msg) {
     // Créer le message de validation.
     message validation_msg;
     memset(&validation_msg, 0, sizeof(validation_msg));
     validation_msg.code = 1;
-    validation_msg.id = msg->id;
-    validation_msg.numv = msg->numv;
-    validation_msg.prix = msg->prix;
-    validation_msg.lmess = msg->lmess;
-    validation_msg.mess = msg->mess;
+    validation_msg.id = msg.id;
+    validation_msg.numv = msg.numv;
+    validation_msg.prix = msg.prix;
+    validation_msg.lmess = msg.lmess;
+    validation_msg.mess = msg.mess;
     validation_msg.lsig = 1;
     validation_msg.sig = "a";
 

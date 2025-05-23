@@ -210,17 +210,25 @@ void *handle_auctions(void *params) {
                             message relay_msg = msg;
                             relay_msg.code = AUC_SUP_REDIFF;
 
-                            if (send_msg_to(relay_msg, flags, p_data->udp_sock,
-                                            (struct sockaddr *)&auction_addr,
-                                            sizeof(auction_addr)) < 0) {
-                                fprintf(stderr, "Failed to send bid validation\n");
-                            } else {
+                            // Si c'est un superviseur, attendre la validation sinon rediffuse le message
+                            printf("%u is supervisor and %u is id\n",auctions[i].supervisor_id, ntohs(p_data->id));
+                            if (auctions[i].supervisor_id == ntohs(p_data->id)) {
+                                printf("[INFO] %u is waiting for new validation bid on auction\n", auctions[i].supervisor_id);
                                 supervisor_wait_for_validation(p_data->udp_sock,
                                                                (struct sockaddr *)&auction_addr,
                                                                peers->size,
-                                                               &relay_msg,
+                                                               relay_msg,
                                                                auctions[i].supervisor_id);
+
                                 printf(" Validated new bid on auction #%u\n", auction_num);
+                            } else {
+                                if (send_msg_to(relay_msg, flags, p_data->udp_sock,
+                                            (struct sockaddr *)&auction_addr,
+                                            sizeof(auction_addr)) < 0) {
+                                    fprintf(stderr, "Failed to send bid validation\n");
+                                } else {
+                                    printf("[Necessaire???] Validated new bid on auction #%u\n", auction_num);
+                                }
                             }
                         } else {
                             printf(" Rejected invalid bid on auction #%u (price too low)\n",
@@ -267,8 +275,8 @@ void *handle_auctions(void *params) {
                        auction_num, bidder_id);
 
                 // TODO: processus de consensus ici, post code 10
-                printf(" Processus de consensus ici, post code 10\n");
-                // send_validation_to_supervisor(p_data->udp_sock, (struct sockaddr *)&auction_addr, &msg);
+                printf("[INFO] %u is sending a new validation bid on auction\n", p_data->id);
+                send_validation_to_supervisor(p_data->udp_sock, (struct sockaddr *)&auction_addr, msg);
 
                 // Maj prix actuel dans la liste de ventes
                 auction_info *auctions = (auction_info *)active_auctions->array;
