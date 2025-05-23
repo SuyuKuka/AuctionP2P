@@ -101,6 +101,8 @@ void *handle_tcp(void *arg) {
                 memcpy(&peer->ip, &msg.ip, sizeof(peer->ip));
                 memcpy(&peer->cle, &msg.cle, sizeof(peer->cle));
 
+                printf("PEER ID: %d\n", peer->id);
+
                 handle_info_sharing(peer_sock, peer, p_data, peers, auction_addr);
                 break;
             case JOIN_SHARE_INFO_TO_ALL:
