@@ -284,6 +284,8 @@ void *handle_auctions(void *params) {
                     }
                 }
 
+                printf("Supervisor is %u", supervisor_id);
+
                 // Récupérer le peer du superviseur
                 for (node *n = peers->head; n != NULL; n = n->next) {
                     if (n->id == supervisor_id) {
