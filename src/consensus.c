@@ -213,9 +213,10 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
     }
 
     buf_to_msg(buf, &confirmation_msg, CODE | ID | LMESS | MESS | LSIG | SIG | NB);
-    size_t header_size = msg_size(CODE | ID | LMESS | MESS | LSIG | SIG | NB);
+    size_t header_size =
+        msg_size(CODE | ID | LMESS | LSIG | NB) + confirmation_msg.lmess + confirmation_msg.lsig;
     size_t following_header_size = msg_size(CODE | ID | NB);
-    size_t sig_size = msg_size(ID | LSIG | SIG);
+    size_t sig_msg_offset = 0;
     uint16_t confirmation_nb = ntohs(confirmation_msg.nb);
 
     printf("[DEBUG] CONSENSUS: Supervisor confirmation received, validating signatures...\n");
@@ -234,16 +235,19 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
         }
 
         for (size_t i = 0; i < confirmation_nb + following_nb; i++) {
+            if (i == 3) sig_msg_offset = 0;
+
             if (i < 3) {
                 printf("[DEBUG] CONSENSUS: Checking signature #%zu...\n", i + 1);
-                buf_to_msg(buf + header_size + sig_size * i, &sig_msg, ID | LSIG | SIG);
+                buf_to_msg(buf + header_size + sig_msg_offset, &sig_msg, ID | LSIG | SIG);
             } else {
                 printf(
                     "[DEBUG] CONSENSUS: Confirmation message split, checking signature #%zu...\n",
                     i + 1);
-                buf_to_msg(sig_buf + following_header_size + sig_size * (i - 3), &sig_msg,
+                buf_to_msg(sig_buf + following_header_size + sig_msg_offset, &sig_msg,
                            ID | LSIG | SIG);
             }
+            sig_msg_offset += msg_size(ID | LSIG) + sig_msg.lsig;
 
             const node *peer;
             uint16_t sig_id = ntohs(sig_msg.id);

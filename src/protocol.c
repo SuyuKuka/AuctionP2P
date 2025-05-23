@@ -50,12 +50,12 @@ void buf_to_msg(const char *buf, message *msg, unsigned int flags) {
 
     if (flags & MESS) {
         memcpy(msg->mess, buf + pos, msg->lmess);
-        pos += sizeof(msg->mess);
+        pos += msg->lmess;
     }
 
     if (flags & SIG) {
         memcpy(msg->sig, buf + pos, msg->lsig);
-        pos += sizeof(msg->sig);
+        pos += msg->lsig;
     }
 
     if (flags & IP) {
