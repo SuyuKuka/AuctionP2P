@@ -261,7 +261,7 @@ void *handle_auctions(void *params) {
                 }
 
                 // Si superviseur : début du consensus
-                if (supervisor_id == p_data->id) {
+                if (supervisor_id == ntohs(p_data->id)) {
                     if (supervisor_begin_consensus(*p_data, auction_addr, *peers, &msg, flags) <
                         0) {
                         printf("  Consensus failed for bid of %u on auction #%u.\n", bid_price,
