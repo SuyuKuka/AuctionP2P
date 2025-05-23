@@ -140,7 +140,7 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
     }
 
     // Toutes les validations sont bien arrivées
-    printf("[DEBUG] CONSENSUS: Confirmation message sent!.\n");
+    printf("[DEBUG] CONSENSUS: Confirmation message sent!\n");
 
     free_dyn_array(msg_buf);
     free_list(&checked_list);
@@ -228,8 +228,12 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
 
         for (size_t i = 0; i < msg_confirmation.nb + peer_sig.nb; i++) {
             if (i < 3) {
+                printf("[DEBUG] CONSENSUS: Checking signature #%zu...\n", i);
                 buf_to_msg(buf + header_size + sig_size * i, &peer_sig, ID | LSIG | SIG);
             } else {
+                printf(
+                    "[DEBUG] CONSENSUS: Confirmation message split, checking signature #%zu...\n",
+                    i);
                 buf_to_msg(sig_buf + sig_header_size + sig_size * (i - 3), &peer_sig,
                            ID | LSIG | SIG);
             }
