@@ -114,14 +114,20 @@ int recv_msg_from(message *msg, int flags, size_t additional_size, int sock, str
     }
 
     char buf[msg_size(flags) + additional_size];
-    if (recvfrom(sock, buf, sizeof(buf), 0, addr, len) < 0) {
+    int r;
+    if ((r = recvfrom(sock, buf, sizeof(buf), 0, addr, len)) < 0) {
         perror("[ERROR] recvfrom");
         return -1;
     }
     if (additional_size > 0) {
-        printf("[DEBUG] CONSENSUS: Supervisor recv_msg_from END\n");
+        printf("[DEBUG] CONSENSUS: Supervisor recv_msg_from END: %d, msg_size: %zu\n", r,
+               msg_size(flags));
     }
     buf_to_msg(buf, msg, flags);
+    if (additional_size > 0) {
+        printf("[DEBUG] CONSENSUS: Supervisor buf_to_msg END\n");
+    }
+
     return 0;
 }
 
