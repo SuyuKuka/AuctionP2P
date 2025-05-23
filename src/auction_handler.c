@@ -131,15 +131,12 @@ void *handle_auctions(void *params) {
     }
 
     char buffer[1024];
-    struct sockaddr_in6 sender_addr;
-    socklen_t sender_len = sizeof(sender_addr);
-
+    auction_info consensus_auction;
     while (*p->running) {
         memset(buffer, 0, sizeof(buffer));
 
         // Recevoir les messages
-        int recv_len = recvfrom(listen_sock, buffer, sizeof(buffer), 0,
-                                (struct sockaddr *)&sender_addr, &sender_len);
+        int recv_len = recvfrom(listen_sock, buffer, sizeof(buffer), 0, NULL, NULL);
         if (recv_len <= 0) {
             continue;
         }
@@ -194,11 +191,16 @@ void *handle_auctions(void *params) {
                     break;
                 }
 
+                // Ajout des infos dans l'enchère attendant le consensus.
+                consensus_auction.current_bidder = bidder_id;
+                consensus_auction.current_price = bid_price;
+                consensus_auction.numv = auction_num;
+
                 printf("  Bid of %u on auction #%u by peer %u.\n", bid_price, auction_num,
                        bidder_id);
 
                 // Si ce pair est superviseur de la vente, rediff l'enchère
-                auction_info *auctions = (auction_info *)active_auctions->array;
+                const auction_info *auctions = (auction_info *)active_auctions->array;
                 int count = active_auctions->len / sizeof(auction_info);
 
                 for (int i = 0; i < count; i++) {
@@ -206,37 +208,14 @@ void *handle_auctions(void *params) {
                         auctions[i].supervisor_id == ntohs(p_data->id) && auctions[i].is_active) {
                         // Check si l'enchère est valide
                         if (bid_price > auctions[i].current_price) {
-                            // Maj prix actuel et l'enchérisseur
-                            auctions[i].current_price = bid_price;
-                            auctions[i].current_bidder = bidder_id;
-                            auctions[i].last_activity = time(NULL);
-                            auctions[i].notice_sent = 0;
-
-                            // Rediff l'enchère avec le code AUC_SUP_REDIFF (validation)
+                            // Rediff l'enchère avec le code AUC_SUP_REDIFF (rediffusion)
                             message relay_msg = msg;
                             relay_msg.code = AUC_SUP_REDIFF;
 
-                            // Si c'est un superviseur, attendre la validation sinon rediffuse le
-                            // message
-                            printf("%u is supervisor and %u is id\n", auctions[i].supervisor_id,
-                                   ntohs(p_data->id));
                             if (send_msg_to(relay_msg, flags, p_data->udp_sock,
                                             (struct sockaddr *)&auction_addr,
                                             sizeof(auction_addr)) < 0) {
-                                fprintf(stderr, "Failed to send bid validation\n");
-                            } else {
-                                if (auctions[i].supervisor_id == ntohs(p_data->id)) {
-                                    printf(
-                                        "[INFO] %u is waiting for new validation bid on auction\n",
-                                        auctions[i].supervisor_id);
-                                    supervisor_wait_for_validation(
-                                        p_data->udp_serv_sock, (struct sockaddr *)&auction_addr,
-                                        peers->size, relay_msg, auctions[i].supervisor_id);
-
-                                    printf("  Validated new bid on auction #%u.\n", auction_num);
-                                }
-                                printf("[Necessaire???] Validated new bid on auction #%u\n",
-                                       auction_num);
+                                fprintf(stderr, "Failed to send bid rediffusion.\n");
                             }
                         } else {
                             printf("  Rejected invalid bid on auction #%u (price too low).\n",
@@ -253,45 +232,39 @@ void *handle_auctions(void *params) {
                             }
                         }
                     }
+                    break;
                 }
-                break;
             }
 
             case AUC_SUP_REDIFF: {  // Rediff de l'enchère par le superviseur (10)
+                int flags = CODE | ID | NUMV | PRIX;
                 buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
                 uint32_t auction_num = ntohl(msg.numv);
                 uint32_t bid_price = ntohl(msg.prix);
                 uint16_t bidder_id = ntohs(msg.id);
-                uint16_t supervisor_id;
-                peer_data *supervisor_peer;
+                int supervisor_id = -1;
+                peer_data *supervisor_peer = NULL;
 
+                // ID du superviseur
                 auction_info *auctions = (auction_info *)active_auctions->array;
                 int count = active_auctions->len / sizeof(auction_info);
-
-                // Récupérer l'id et le peer du superviseur
-                printf("Peer id : %u\n", ntohs(p_data->id));
-                printf("Auction num msg : %u\n", auction_num);
-                printf("Count : %d\n", count);
-
                 for (int i = 0; i < count; i++) {
-                    printf("Supervisor id: %u\n", auctions[i].supervisor_id);
-                    printf("Auction num: %u\n", auctions[i].numv);
-                    if (auctions[i].numv == auction_num) {
-                        for (node *n = peers->head; n != NULL; n = n->next) {
-                            printf("Peer id boucle: %u\n", ntohs(n->id));
-                            if (ntohs(n->id) == auctions[i].supervisor_id) {
-                                supervisor_id = auctions[i].supervisor_id;
-                                supervisor_peer = n->data;
-                                break;
-                            }
-                        }
-                    }
+                    if (auctions[i].numv == auction_num) supervisor_id = auctions[i].supervisor_id;
                 }
+                if (supervisor_id == -1) break;
 
-                printf("Supervisor is %u\n", supervisor_id);
+                // Infos du superviseur
+                for (node *n = peers->head; n != NULL; n = n->next) {
+                    if (n->id == supervisor_id) supervisor_peer = (peer_data *)n->data;
+                }
+                if (supervisor_peer == NULL) break;
 
-                if (supervisor_id != 0) {
-                    // Créer l'addresse du superviseur
+                // Si superviseur : début du consensus
+                if (supervisor_id == p_data->id) {
+                    if (supervisor_begin_consensus(*p_data, auction_addr, *peers, msg, flags) < 0)
+                        break;
+                } else {  // Envoi du message de consensus au superviseur
+                    // Adresse du superviseur
                     struct sockaddr_in6 addr;
                     memset(&addr, 0, sizeof(addr));
                     addr.sin6_family = AF_INET6;
@@ -300,143 +273,124 @@ void *handle_auctions(void *params) {
                     addr.sin6_port = supervisor_peer->port;
 
                     // Envoi de la validation au superviseur
-                    printf("[INFO] %u is sending a new validation bid on auction\n",
-                           ntohs(p_data->id));
-                    send_validation_to_supervisor(p_data->udp_sock, (struct sockaddr *)&addr, msg);
-                } else {
-                    supervisor_id = p_data->id;
-                    supervisor_peer = NULL;
-                }
-
-                printf("After sending...\n");
-
-                // Recevoir la confirmation du superviseur
-                message msg_confirmation;
-                recv_msg_from(&msg_confirmation,
-                              CODE | ID | NUMV | PRIX | LMESS | MESS | LSIG | SIG,
-                              p_data->udp_serv_sock, NULL, NULL);
-
-                // Si c’est une validation pour la bonne enchère
-                if (msg_confirmation.code == 2 && msg_confirmation.numv == msg.numv) {
-                    printf("  Supervisor validated bid of %u on auction #%u by peer %u.\n",
-                           bid_price, auction_num, bidder_id);
-
-                    // Maj prix actuel dans la liste de ventes
-                    auction_info *auctions = (auction_info *)active_auctions->array;
-                    int count = active_auctions->len / sizeof(auction_info);
-
-                    for (int i = 0; i < count; i++) {
-                        if (auctions[i].numv == auction_num && auctions[i].is_active) {
-                            auctions[i].current_price = bid_price;
-                            auctions[i].current_bidder = bidder_id;
-                            auctions[i].last_activity = time(NULL);
-                            auctions[i].notice_sent = 0;
-                            break;
-                        }
+                    if (send_await_validation_to_supervisor(addr, msg, flags, *p_data, *peers,
+                                                            listen_sock) < 0) {
+                        break;
                     }
-                    break;
                 }
 
-                case AUC_NOTICE: {  // Première notification de prix final (11)
-                    buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
-                    uint32_t auction_num = ntohl(msg.numv);
-                    uint16_t supervisor_id = ntohs(msg.id);
-                    uint32_t current_price = ntohl(msg.prix);
-
-                    printf(
-                        "  First notice of ending auction #%u from supervisor %u with current "
-                        "price at "
-                        "%u.\n",
-                        auction_num, supervisor_id, current_price);
-
-                    // Mise à jour de l'état de l'enchère
-                    auction_info *auctions = (auction_info *)active_auctions->array;
-                    int count = active_auctions->len / sizeof(auction_info);
-
-                    for (int i = 0; i < count; i++) {
-                        if (auctions[i].numv == auction_num && auctions[i].is_active) {
-                            // Activation du flag de la première notification
-                            auctions[i].notice_sent = 1;
-                            break;
-                        }
+                // Màj prix actuel dans la liste de ventes
+                for (int i = 0; i < count; i++) {
+                    if (auctions[i].numv == auction_num && auctions[i].is_active) {
+                        auctions[i].current_price = bid_price;
+                        auctions[i].current_bidder = bidder_id;
+                        auctions[i].last_activity = time(NULL);
+                        auctions[i].notice_sent = 0;
+                        break;
                     }
-                    break;
                 }
-
-                case AUC_END: {  // Deuxième notification et fin de vente (12)
-                    buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
-                    uint32_t auction_num = ntohl(msg.numv);
-                    uint32_t final_price = ntohl(msg.prix);
-                    uint16_t winner_id = ntohs(msg.id);
-
-                    printf("  Auction #%u ended, won by peer %u with final price %u.\n",
-                           auction_num, winner_id, final_price);
-
-                    // Voir si TODO: implémentation du processus de consensus ici ?
-
-                    // Marquer l'enchère comme finie dans la liste
-                    auction_info *auctions = (auction_info *)active_auctions->array;
-                    int count = active_auctions->len / sizeof(auction_info);
-
-                    for (int i = 0; i < count; i++) {
-                        if (auctions[i].numv == auction_num) {
-                            auctions[i].is_active = 0;
-                            break;
-                        }
-                    }
-                    break;
-                }
-
-                case AUC_LEAVE: {  // Quitter le système (13)
-                    buf_to_msg(buffer, &msg, CODE | ID);
-                    uint16_t leaving_peer_id = ntohs(msg.id);
-
-                    printf("  Peer %u is leaving the auction system.\n", leaving_peer_id);
-                    // TODO: Implémenter la gestion d'un pair quittant le système
-                    break;
-                }
-
-                case AUC_CONCUR: {  // Concurrence entre deux enchères (14)
-                    buf_to_msg(buffer, &msg, CODE | ID | NUMV);
-                    uint32_t auction_num = ntohl(msg.numv);
-                    uint16_t supervisor_id = ntohs(msg.id);
-
-                    printf("  Concurrency issue detected with auction #%u from supervisor %u.\n",
-                           auction_num, supervisor_id);
-                    // TODO: Implémenter la gestion de concurrence
-                    break;
-                }
-
-                case AUC_REJECT: {  // Enchère rejetée car invalide (15)
-                    buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
-                    uint32_t auction_num = ntohl(msg.numv);
-                    uint32_t rejected_price = ntohl(msg.prix);
-                    uint16_t bidder_id = ntohs(msg.id);
-
-                    printf("  Bid of %u on auction #%u by peer %u was rejected.\n", rejected_price,
-                           auction_num, bidder_id);
-                    break;
-                }
-
-                case MISSING_SUP: {  // Superviseur absent (16)
-                    buf_to_msg(buffer, &msg, CODE | ID | NUMV);
-                    uint32_t auction_num = ntohl(msg.numv);
-                    uint16_t reporting_peer_id = ntohs(msg.id);
-
-                    printf("  Supervisor for auction #%u is reported missing by peer %u.\n",
-                           auction_num, reporting_peer_id);
-                    // TODO: Implémentation de la gestion d'absence du superviseur
-                    break;
-                }
-
-                default:
-                    break;
+                break;
             }
-        }
 
-        close(listen_sock);
-        return NULL;
+            case AUC_NOTICE: {  // Première notification de prix final (11)
+                buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
+                uint32_t auction_num = ntohl(msg.numv);
+                uint16_t supervisor_id = ntohs(msg.id);
+                uint32_t current_price = ntohl(msg.prix);
+
+                printf(
+                    "  First notice of ending auction #%u from supervisor %u with current "
+                    "price at "
+                    "%u.\n",
+                    auction_num, supervisor_id, current_price);
+
+                // Mise à jour de l'état de l'enchère
+                auction_info *auctions = (auction_info *)active_auctions->array;
+                int count = active_auctions->len / sizeof(auction_info);
+
+                for (int i = 0; i < count; i++) {
+                    if (auctions[i].numv == auction_num && auctions[i].is_active) {
+                        // Activation du flag de la première notification
+                        auctions[i].notice_sent = 1;
+                        break;
+                    }
+                }
+                break;
+            }
+
+            case AUC_END: {  // Deuxième notification et fin de vente (12)
+                buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
+                uint32_t auction_num = ntohl(msg.numv);
+                uint32_t final_price = ntohl(msg.prix);
+                uint16_t winner_id = ntohs(msg.id);
+
+                printf("  Auction #%u ended, won by peer %u with final price %u.\n", auction_num,
+                       winner_id, final_price);
+
+                // Voir si TODO: implémentation du processus de consensus ici ?
+
+                // Marquer l'enchère comme finie dans la liste
+                auction_info *auctions = (auction_info *)active_auctions->array;
+                int count = active_auctions->len / sizeof(auction_info);
+
+                for (int i = 0; i < count; i++) {
+                    if (auctions[i].numv == auction_num) {
+                        auctions[i].is_active = 0;
+                        break;
+                    }
+                }
+                break;
+            }
+
+            case AUC_LEAVE: {  // Quitter le système (13)
+                buf_to_msg(buffer, &msg, CODE | ID);
+                uint16_t leaving_peer_id = ntohs(msg.id);
+
+                printf("  Peer %u is leaving the auction system.\n", leaving_peer_id);
+                // TODO: Implémenter la gestion d'un pair quittant le système
+                break;
+            }
+
+            case AUC_CONCUR: {  // Concurrence entre deux enchères (14)
+                buf_to_msg(buffer, &msg, CODE | ID | NUMV);
+                uint32_t auction_num = ntohl(msg.numv);
+                uint16_t supervisor_id = ntohs(msg.id);
+
+                printf("  Concurrency issue detected with auction #%u from supervisor %u.\n",
+                       auction_num, supervisor_id);
+                // TODO: Implémenter la gestion de concurrence
+                break;
+            }
+
+            case AUC_REJECT: {  // Enchère rejetée car invalide (15)
+                buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
+                uint32_t auction_num = ntohl(msg.numv);
+                uint32_t rejected_price = ntohl(msg.prix);
+                uint16_t bidder_id = ntohs(msg.id);
+
+                printf("  Bid of %u on auction #%u by peer %u was rejected.\n", rejected_price,
+                       auction_num, bidder_id);
+                break;
+            }
+
+            case MISSING_SUP: {  // Superviseur absent (16)
+                buf_to_msg(buffer, &msg, CODE | ID | NUMV);
+                uint32_t auction_num = ntohl(msg.numv);
+                uint16_t reporting_peer_id = ntohs(msg.id);
+
+                printf("  Supervisor for auction #%u is reported missing by peer %u.\n",
+                       auction_num, reporting_peer_id);
+                // TODO: Implémentation de la gestion d'absence du superviseur
+                break;
+            }
+
+            default:
+                break;
+        }
     }
+
+    close(listen_sock);
+    return NULL;
 }
 
 /**************************************************************************************************

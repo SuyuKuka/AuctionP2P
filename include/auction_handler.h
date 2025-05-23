@@ -6,7 +6,7 @@
 #include <time.h>
 
 #include "collections.h"
-#include "concensus.h"
+#include "consensus.h"
 #include "protocol.h"
 
 /* Structure d'une enchère */
