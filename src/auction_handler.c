@@ -294,6 +294,8 @@ void *handle_auctions(void *params) {
                     }
                 }
 
+                printf("%u:%u" ,supervisor_peer->ip, supervisor_peer->port);
+
                 // Créer l'addresse du superviseur
                 // struct sockaddr_in6 addr;
                 // memset(&addr, 0, sizeof(addr));
