@@ -276,7 +276,13 @@ void *handle_auctions(void *params) {
                 int count = active_auctions->len / sizeof(auction_info);
 
                 // Récupérer l'id du superviseur
+                printf("Peer id : %u\n", ntohs(p_data->id));
+                printf("Auction num msg : %u\n", auction_num);
+
                 for (int i = 0; i < count; i++) {
+                    printf("Supervisor id: %u\n", auctions[i].supervisor_id);
+                    printf("Auction num: %u\n", auctions[i].numv);
+                    printf("Is active: %d\n", auctions[i].is_active);
                     if (auctions[i].numv == auction_num &&
                         auctions[i].supervisor_id == ntohs(p_data->id) && auctions[i].is_active) {
                         supervisor_id = auctions[i].supervisor_id;
