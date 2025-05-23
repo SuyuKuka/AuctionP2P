@@ -22,6 +22,8 @@ int supervisor_wait_for_validation(int sock, struct sockaddr *addr, size_t nb_pe
             continue;
         }
 
+        printf("[DEBUG] Received message from peer ID %d\n", ntohs(msg.id));
+
         // Si c’est une validation pour la bonne enchère
         if (msg.code == 1 && msg.numv == mess.numv) {
             printf("[DEBUG] Received validation from peer ID %d\n", ntohs(msg.id));
