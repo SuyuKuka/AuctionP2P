@@ -30,6 +30,8 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
         if (msg.code != CONS_VAL) continue;
         uint16_t peer_id = ntohs(msg.id);
 
+        printf("[DEBUG] CONSENSUS: Validation message received, verifying signature...\n");
+
         // Vérification de la signature
         const node *peer;
         if ((peer = get_node(peer_id, &peers)) == NULL) continue;
@@ -40,7 +42,7 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
         if (!n) continue;
         append_to_list(n, peer_id, &checked_list);
 
-        printf("[DEBUG] CONSENSUS: Received validation message from peer ID %d\n", peer_id);
+        printf("[DEBUG] CONSENSUS: Peer %d message validated!\n", peer_id);
     }
 
     // Vérifie s'il manque des pairs
