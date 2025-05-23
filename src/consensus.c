@@ -10,7 +10,7 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
     // Buffer pour le champ mess
     dyn_array msg_buf;
     if (init_dyn_array(&msg_buf, msg_size(flags)) < 0) return -1;
-    if (concat_msg_to_buf(&msg_buf, mess, flags) < 0) return -1;
+    if (concat_msg_to_buf(&msg_buf, mess, flags) < 0) goto error;
 
     // Liste des pairs vérifiés
     linked_list checked_list;
@@ -68,7 +68,11 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
         goto error;
     }
 
+    // Toutes les validations sont bien arrivées
+    printf("[DEBUG] CONSENSUS: All %zu validation(s) received successfully.\n", peers->size);
+
     // Message de validation.
+    int val_flags = CODE | ID | LMESS | MESS | LSIG | SIG | NB;
     message validation_msg;
     memset(&validation_msg, 0, sizeof(validation_msg));
     validation_msg.code = CONS_CONF;
@@ -77,16 +81,66 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
     memcpy(validation_msg.mess, msg_buf.array, validation_msg.lmess);
     validation_msg.lsig = 0;
     memcpy(validation_msg.sig, "", validation_msg.lsig);
+    validation_msg.nb = peers->size > 2 ? htons(3) : htons(peers->size);
+
+    free_dyn_array(msg_buf);
+    if (init_dyn_array(&msg_buf, msg_size(flags)) < 0) return -1;
+    if (concat_msg_to_buf(&msg_buf, &validation_msg, val_flags) < 0) goto error;
+
+    node *n = peers->head;
+    int count = 0;
+    while (count < 3 && n != NULL) {
+        message sig_msg;
+        memset(&sig_msg, 0, sizeof(sig_msg));
+        sig_msg.id = htons(n->id);
+        sig_msg.lsig = 0;
+        memcpy(sig_msg.sig, "", sig_msg.lsig);
+        if (concat_msg_to_buf(&msg_buf, &sig_msg, ID | LSIG | SIG) < 0) goto error;
+        count++;
+        n = n->next;
+    }
 
     // Multidiffuse le message avec le code 2
-    if (send_msg_to(validation_msg, CODE | ID | LMESS | MESS | LSIG | SIG, p_data.udp_sock,
-                    (struct sockaddr *)(&mult_addr), sizeof(mult_addr)) < 0) {
-        fprintf(stderr, "[ERROR] send_msg_to");
+    if (sendto(p_data.udp_sock, msg_buf.array, msg_buf.len, 0, (struct sockaddr *)(&mult_addr),
+               sizeof(mult_addr)) < 0) {
+        perror("[ERROR] sendto");
         goto error;
     }
 
+    if (peers->size > 3) {
+        // Multidiffusion des signatures restantes
+        int follow_flags = CODE | ID | NB;
+        message following_msg;
+        memset(&following_msg, 0, sizeof(following_msg));
+        following_msg.code = CONS_CONF_FOLLOW;
+        following_msg.id = htons(p_data.id);
+        validation_msg.nb = htons(peers->size - 3);
+
+        free_dyn_array(msg_buf);
+        if (init_dyn_array(&msg_buf, msg_size(follow_flags)) < 0) return -1;
+        if (concat_msg_to_buf(&msg_buf, &following_msg, follow_flags) < 0) goto error;
+
+        while (n != NULL) {
+            message sig_msg;
+            memset(&sig_msg, 0, sizeof(sig_msg));
+            sig_msg.id = htons(n->id);
+            sig_msg.lsig = 0;
+            memcpy(sig_msg.sig, "", sig_msg.lsig);
+            if (concat_msg_to_buf(&msg_buf, &sig_msg, ID | LSIG | SIG) < 0) goto error;
+            count++;
+            n = n->next;
+        }
+
+        // Multidiffuse le message avec le code 20
+        if (sendto(p_data.udp_sock, msg_buf.array, msg_buf.len, 0, (struct sockaddr *)(&mult_addr),
+                   sizeof(mult_addr)) < 0) {
+            perror("[ERROR] sendto");
+            goto error;
+        }
+    }
+
     // Toutes les validations sont bien arrivées
-    printf("[DEBUG] CONSENSUS: All %zu validation(s) received successfully.\n", peers->size);
+    printf("[DEBUG] CONSENSUS: Confirmation message sent!.\n");
 
     free_dyn_array(msg_buf);
     free_list(&checked_list);
@@ -161,6 +215,7 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
     size_t sig_header_size = msg_size(CODE | ID | NB);
     size_t sig_size = msg_size(ID | LSIG | SIG);
 
+    printf("[DEBUG] CONSENSUS: Supervisor confirmation received, validating signatures...\n");
     // Vérification de la signature de tous les pairs
     if (msg_confirmation.code == CONS_CONF) {
         if (msg_confirmation.nb > 3) {
@@ -168,14 +223,15 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
                 perror("[ERROR] recvfrom");
                 goto error;
             }
-            buf_to_msg(sig_buf, &peer_sig, CODE | ID | NB);
+            if (sig_buf[0] == CONS_CONF_FOLLOW) buf_to_msg(sig_buf, &peer_sig, CODE | ID | NB);
         }
 
-        for (size_t i = 0; i < msg_confirmation.nb; i++) {
+        for (size_t i = 0; i < msg_confirmation.nb + peer_sig.nb; i++) {
             if (i < 3) {
                 buf_to_msg(buf + header_size + sig_size * i, &peer_sig, ID | LSIG | SIG);
             } else {
-                buf_to_msg(sig_buf + sig_header_size + sig_size * i, &peer_sig, ID | LSIG | SIG);
+                buf_to_msg(sig_buf + sig_header_size + sig_size * (i - 3), &peer_sig,
+                           ID | LSIG | SIG);
             }
             const node *peer;
             if ((peer = get_node(peer_sig.id, &peers)) == NULL) goto error;
