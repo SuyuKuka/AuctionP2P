@@ -281,7 +281,7 @@ void *handle_auctions(void *params) {
                     char ip_str[INET6_ADDRSTRLEN];
                     if (inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str)))
                         printf("[DEBUG] CONSENSUS: Supervisor addr: %s %d\n", ip_str,
-                               addr.sin6_port);
+                               ntohs(addr.sin6_port));
                     // ===== DEBUG =====
 
                     // Envoi de la validation au superviseur
