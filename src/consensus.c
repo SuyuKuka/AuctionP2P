@@ -17,33 +17,36 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
     memset(&checked_list, 0, sizeof(checked_list));
 
     int poll_ret;
-    struct pollfd fds = {.fd = p_data.udp_serv_sock, .events = POLLIN};
+    struct pollfd fd = {.fd = p_data.udp_serv_sock, .events = POLLIN};
     // Le superviseur attend les messages de validations
     printf("[DEBUG] CONSENSUS: Waiting for %zu validation(s)...\n", peers.size);
-    while ((poll_ret = poll(&fds, 1, MILLI(5)))) {
-        message msg;
-        printf("[DEBUG] CONSENSUS: Message received, verifying code...\n");
-        if (recv_msg_from(&msg, CODE | ID | LMESS | MESS | LSIG | SIG, p_data.udp_serv_sock, NULL,
-                          NULL) < 0) {
-            perror("[ERROR] recvfrom");
-            continue;
+    while ((poll_ret = poll(&fd, 1, MILLI(5))) > 0) {
+        if (fd.revents & POLLIN) {
+            message msg;
+            printf("[DEBUG] CONSENSUS: Message received, verifying code...\n");
+            if (recv_msg_from(&msg, CODE | ID | LMESS | MESS | LSIG | SIG, p_data.udp_serv_sock,
+                              NULL, NULL) < 0) {
+                perror("[ERROR] recvfrom");
+                continue;
+            }
+            if (msg.code != CONS_VAL) continue;
+            uint16_t peer_id = ntohs(msg.id);
+
+            printf("[DEBUG] CONSENSUS: Validation message received, verifying signature...\n");
+
+            // Vérification de la signature
+            const node *peer;
+            if ((peer = get_node(peer_id, &peers)) == NULL) continue;
+            if (verify_signature(msg_buf.array, msg.sig, ((peer_data *)peer->data)->cle) < 0)
+                continue;
+
+            // Ajout dans la liste des pairs vérifiés
+            node *n = init_node();
+            if (!n) continue;
+            append_to_list(n, peer_id, &checked_list);
+
+            printf("[DEBUG] CONSENSUS: Peer %d message validated!\n", peer_id);
         }
-        if (msg.code != CONS_VAL) continue;
-        uint16_t peer_id = ntohs(msg.id);
-
-        printf("[DEBUG] CONSENSUS: Validation message received, verifying signature...\n");
-
-        // Vérification de la signature
-        const node *peer;
-        if ((peer = get_node(peer_id, &peers)) == NULL) continue;
-        if (verify_signature(msg_buf.array, msg.sig, ((peer_data *)peer->data)->cle) < 0) continue;
-
-        // Ajout dans la liste des pairs vérifiés
-        node *n = init_node();
-        if (!n) continue;
-        append_to_list(n, peer_id, &checked_list);
-
-        printf("[DEBUG] CONSENSUS: Peer %d message validated!\n", peer_id);
     }
 
     // Vérifie s'il manque des pairs
@@ -126,13 +129,15 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
     // Recevoir la confirmation du superviseur
     int got_res = 0;
     int poll_ret;
-    struct pollfd fds = {.fd = mult_sock, .events = POLLIN};
-    while ((poll_ret = poll(&fds, 1, MILLI(5)))) {
-        if (recvfrom(mult_sock, buf, sizeof(buf), 0, NULL, NULL) < 0) {
-            perror("[ERROR] recvfrom");
-            goto error;
+    struct pollfd fd = {.fd = mult_sock, .events = POLLIN};
+    while ((poll_ret = poll(&fd, 1, MILLI(5))) > 0) {
+        if (fd.revents & POLLIN) {
+            if (recvfrom(mult_sock, buf, sizeof(buf), 0, NULL, NULL) < 0) {
+                perror("[ERROR] recvfrom");
+                goto error;
+            }
+            got_res = 1;
         }
-        got_res = 1;
     }
 
     if (poll_ret < 0 || !got_res) {

@@ -193,7 +193,7 @@ int await_join_req_response(int sock, linked_list *peers) {
 
     int poll_ret;
     struct pollfd fds = {.fd = sock, .events = POLLIN};
-    while ((poll_ret = poll(&fds, 1, MILLI(5)))) {
+    while ((poll_ret = poll(&fds, 1, MILLI(5))) > 0) {
         // Message reçu.
         if (fds.revents & POLLIN) {
             // Lecture du message.

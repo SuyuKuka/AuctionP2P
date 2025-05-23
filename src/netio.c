@@ -11,7 +11,7 @@ int read_nb(int sock, void *buf, size_t n, int timeout) {
     int poll_ret;
     ssize_t n_read;
     size_t pos = 0;
-    while (pos < n && (poll_ret = poll(&fd, 1, timeout))) {
+    while (pos < n && (poll_ret = poll(&fd, 1, timeout)) > 0) {
         if (fd.revents & POLLIN) {
             n_read = recv(sock, (char *)buf + pos, n - pos, 0);
             if (n_read < 0) {
@@ -50,7 +50,7 @@ int write_nb(int sock, void *buf, size_t n, int timeout) {
 
     int poll_ret;
     size_t pos = 0;
-    while (pos < n && (poll_ret = poll(&fd, 1, timeout))) {
+    while (pos < n && (poll_ret = poll(&fd, 1, timeout)) > 0) {
         if (fd.revents & POLLOUT) {
             ssize_t n_sent = send(sock, buf + pos, n - pos, 0);
             if (n_sent < 0) {
