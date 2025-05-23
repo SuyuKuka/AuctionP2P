@@ -154,7 +154,7 @@ error:
 
 int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, message *msg,
                                         int flags, pers_data p_data, linked_list peers,
-                                        int mult_sock) {
+                                        int mult_sock, uint16_t supervisor_id) {
     // Buffer pour le champ mess
     dyn_array msg_buf;
     if (init_dyn_array(&msg_buf, msg_size(flags)) < 0) return -1;
@@ -181,12 +181,14 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
 
     char buf[1024];
     char sig_buf[1024];
-    message msg_confirmation;
-    message peer_sig;
+    message confirmation_msg;
+    message following_msg;
+    message sig_msg;
     memset(buf, 0, sizeof(buf));
     memset(sig_buf, 0, sizeof(sig_buf));
-    memset(&msg_confirmation, 0, sizeof(msg_confirmation));
-    memset(&peer_sig, 0, sizeof(peer_sig));
+    memset(&confirmation_msg, 0, sizeof(confirmation_msg));
+    memset(&following_msg, 0, sizeof(following_msg));
+    memset(&sig_msg, 0, sizeof(sig_msg));
 
     // Recevoir la confirmation du superviseur
     int got_res = 0;
@@ -210,40 +212,49 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
         goto error;
     }
 
-    buf_to_msg(buf, &msg_confirmation, CODE | ID | LMESS | MESS | LSIG | SIG | NB);
+    buf_to_msg(buf, &confirmation_msg, CODE | ID | LMESS | MESS | LSIG | SIG | NB);
     size_t header_size = msg_size(CODE | ID | LMESS | MESS | LSIG | SIG | NB);
-    size_t sig_header_size = msg_size(CODE | ID | NB);
+    size_t following_header_size = msg_size(CODE | ID | NB);
     size_t sig_size = msg_size(ID | LSIG | SIG);
+    uint16_t confirmation_nb = ntohs(confirmation_msg.nb);
 
     printf("[DEBUG] CONSENSUS: Supervisor confirmation received, validating signatures...\n");
     // Vérification de la signature de tous les pairs
-    if (msg_confirmation.code == CONS_CONF) {
-        if (msg_confirmation.nb > 3) {
+    if (confirmation_msg.code == CONS_CONF && ntohs(confirmation_msg.id) == supervisor_id) {
+        uint16_t following_nb = 0;
+        if (confirmation_nb > 3) {
             if (recvfrom(mult_sock, sig_buf, sizeof(sig_buf), 0, NULL, NULL) < 0) {
                 perror("[ERROR] recvfrom");
                 goto error;
             }
-            if (sig_buf[0] == CONS_CONF_FOLLOW) buf_to_msg(sig_buf, &peer_sig, CODE | ID | NB);
+            if (sig_buf[0] == CONS_CONF_FOLLOW && ntohs(confirmation_msg.id) == supervisor_id) {
+                buf_to_msg(sig_buf, &following_msg, CODE | ID | NB);
+                following_nb = ntohs(following_msg.nb);
+            }
         }
 
-        for (size_t i = 0; i < msg_confirmation.nb + peer_sig.nb; i++) {
+        for (size_t i = 0; i < confirmation_nb + following_nb; i++) {
             if (i < 3) {
                 printf("[DEBUG] CONSENSUS: Checking signature #%zu...\n", i + 1);
-                buf_to_msg(buf + header_size + sig_size * i, &peer_sig, ID | LSIG | SIG);
+                buf_to_msg(buf + header_size + sig_size * i, &sig_msg, ID | LSIG | SIG);
             } else {
                 printf(
                     "[DEBUG] CONSENSUS: Confirmation message split, checking signature #%zu...\n",
                     i + 1);
-                buf_to_msg(sig_buf + sig_header_size + sig_size * (i - 3), &peer_sig,
+                buf_to_msg(sig_buf + following_header_size + sig_size * (i - 3), &sig_msg,
                            ID | LSIG | SIG);
             }
+
             const node *peer;
-            if ((peer = get_node(peer_sig.id, &peers)) == NULL) {
-                printf("[ERROR] CONSENSUS: Unknown peer id: %d\n", peer_sig.id);
-                goto error;
+            uint16_t sig_id = ntohs(sig_msg.id);
+            if (sig_id != p_data.id) {
+                if ((peer = get_node(sig_id, &peers)) == NULL) {
+                    printf("[ERROR] CONSENSUS: Unknown peer id: %d\n", sig_id);
+                    goto error;
+                }
+                if (verify_signature(msg_buf.array, sig_id, ((peer_data *)peer->data)->cle) < 0)
+                    goto error;
             }
-            if (verify_signature(msg_buf.array, peer_sig.sig, ((peer_data *)peer->data)->cle) < 0)
-                goto error;
         }
 
         free_dyn_array(msg_buf);

@@ -285,7 +285,7 @@ void *handle_auctions(void *params) {
 
                     // Envoi de la validation au superviseur
                     if (send_await_validation_to_supervisor(addr, &msg, flags, *p_data, *peers,
-                                                            listen_sock) < 0) {
+                                                            listen_sock, supervisor_id) < 0) {
                         printf("  Consensus failed for bid of %u on auction #%u.\n", bid_price,
                                auction_num);
                         break;

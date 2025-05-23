@@ -14,7 +14,7 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
 
 int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, message *msg,
                                         int flags, pers_data p_data, linked_list peers,
-                                        int mult_sock);
+                                        int mult_sock, uint16_t supervisor_id);
 
 int verify_signature(const char *mess, const char *signature, const char *key);
 
