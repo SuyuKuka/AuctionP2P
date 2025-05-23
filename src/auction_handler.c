@@ -277,6 +277,13 @@ void *handle_auctions(void *params) {
                            sizeof(addr.sin6_addr.s6_addr));
                     addr.sin6_port = supervisor_peer->port;
 
+                    // ===== DEBUG =====
+                    char ip_str[INET6_ADDRSTRLEN];
+                    if (inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str)))
+                        printf("[DEBUG] CONSENSUS: Supervisor addr: %s %d\n", ip_str,
+                               addr.sin6_port);
+                    // ===== DEBUG =====
+
                     // Envoi de la validation au superviseur
                     if (send_await_validation_to_supervisor(addr, &msg, flags, *p_data, *peers,
                                                             listen_sock) < 0) {
