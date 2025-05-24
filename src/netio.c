@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <stdio.h>
+#include <string.h>
 
 int read_nb(int sock, void *buf, size_t n, int timeout) {
     struct pollfd fd = {.fd = sock, .events = POLLIN};
@@ -11,7 +12,7 @@ int read_nb(int sock, void *buf, size_t n, int timeout) {
     int poll_ret;
     ssize_t n_read;
     size_t pos = 0;
-    while (pos < n && (poll_ret = poll(&fd, 1, timeout))) {
+    while (pos < n && (poll_ret = poll(&fd, 1, timeout)) > 0) {
         if (fd.revents & POLLIN) {
             n_read = recv(sock, (char *)buf + pos, n - pos, 0);
             if (n_read < 0) {
@@ -50,7 +51,7 @@ int write_nb(int sock, void *buf, size_t n, int timeout) {
 
     int poll_ret;
     size_t pos = 0;
-    while (pos < n && (poll_ret = poll(&fd, 1, timeout))) {
+    while (pos < n && (poll_ret = poll(&fd, 1, timeout)) > 0) {
         if (fd.revents & POLLOUT) {
             ssize_t n_sent = send(sock, buf + pos, n - pos, 0);
             if (n_sent < 0) {
@@ -107,13 +108,17 @@ error:
     return -1;
 }
 
-int recv_msg_from(message *msg, int flags, int sock, struct sockaddr *addr, socklen_t *len) {
-    char buf[msg_size(flags)];
+int recv_msg_from(message *msg, int flags, size_t additional_size, int sock, struct sockaddr *addr,
+                  socklen_t *len) {
+    char buf[msg_size(flags) + additional_size];
+    memset(buf, 0, sizeof(buf));
+
     if (recvfrom(sock, buf, sizeof(buf), 0, addr, len) < 0) {
         perror("[ERROR] recvfrom");
         return -1;
     }
     buf_to_msg(buf, msg, flags);
+
     return 0;
 }
 

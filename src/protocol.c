@@ -13,12 +13,10 @@ int concat_msg_to_buf(dyn_array *msg_buf, message *msg, unsigned int flags) {
 
     if (flags & LSIG && concat_to_array(msg_buf, &msg->lsig, sizeof(msg->lsig)) < 0) return -1;
 
-    if (flags & MESS && msg->lmess > 0 && msg->mess != NULL &&
-        concat_to_array(msg_buf, msg->mess, msg->lmess) < 0)
+    if (flags & MESS && msg->lmess > 0 && concat_to_array(msg_buf, msg->mess, msg->lmess) < 0)
         return -1;
 
-    if (flags & SIG && msg->lsig > 0 && msg->sig != NULL &&
-        concat_to_array(msg_buf, msg->sig, msg->lsig) < 0)
+    if (flags & SIG && msg->lsig > 0 && concat_to_array(msg_buf, msg->sig, msg->lsig) < 0)
         return -1;
 
     if (flags & IP && concat_to_array(msg_buf, &msg->ip, sizeof(msg->ip)) < 0) return -1;

@@ -1,4 +1,5 @@
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -60,7 +61,7 @@ int main(int argc, char const *argv[]) {
         goto error;
 
     // Initialisation udp_serv_sock.
-    udp_serv_sock = make_udp_receiver_socket(personal_addr.sin6_port);
+    udp_serv_sock = make_udp_receiver_socket(ntohs(personal_addr.sin6_port));
     if (udp_serv_sock < 0) goto error;
 
     // Initialisation tcp_serv_sock.
@@ -73,14 +74,14 @@ int main(int argc, char const *argv[]) {
     p_data.udp_sock = udp_sock;
     p_data.udp_serv_sock = udp_serv_sock;
     p_data.tcp_serv_sock = tcp_serv_sock;
-    p_data.id = htons(rand() % UINT16_MAX);
+    p_data.id = rand() % UINT16_MAX;
     memset(&p_data.cle, 0, sizeof(p_data.cle));
 
     // ===== DEBUG =====
     char ip_str[INET6_ADDRSTRLEN];
     if (inet_ntop(AF_INET6, &personal_addr.sin6_addr, ip_str, sizeof(ip_str)))
         printf("[DEBUG] Personal addr: %s %d\n[DEBUG] Personal ID: %d\n", ip_str,
-               ntohs(personal_addr.sin6_port), ntohs(p_data.id));
+               ntohs(personal_addr.sin6_port), p_data.id);
     // ===== DEBUG =====
 
     // Demande d'adhésion au système d'enchères
@@ -122,6 +123,7 @@ int main(int argc, char const *argv[]) {
     auction_handler_params auction_params = {.p_data = &p_data,
                                              .auction_addr = auction_addr,
                                              .active_auctions = &active_auctions,
+                                             .peers = &peers,
                                              .running = &running};
     if (pthread_create(&auction_thread, NULL, handle_auctions, &auction_params) < 0) goto error;
     thread_count++;
@@ -139,7 +141,6 @@ int main(int argc, char const *argv[]) {
     // Interface user pour la gestion des enchères
     char input[256];
     char cmd[64];
-
     while (running) {
         memset(input, 0, sizeof(input));
         memset(cmd, 0, sizeof(cmd));

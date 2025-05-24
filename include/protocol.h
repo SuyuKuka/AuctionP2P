@@ -56,8 +56,8 @@ typedef struct message {
     uint16_t id;        /* Identifiant. */
     uint8_t lmess;      /* Longueur du message. */
     uint8_t lsig;       /* Longueur de la signature. */
-    char *mess;         /* Message. */
-    char *sig;          /* Signature. */
+    char mess[512];     /* Message. */
+    char sig[512];      /* Signature. */
     uint8_t ip[16];     /* Adresse IP. */
     uint16_t port;      /* Port. */
     char cle[KEY_SIZE]; /* Clé. */
@@ -67,7 +67,7 @@ typedef struct message {
 } message;
 
 /* Structure contenant l'ID, l'adresse et la clé d'un pair.
-   /!\ ID, IP et port en big-endian. /!\ */
+   /!\ IP en big-endian. /!\ */
 typedef struct peer_data {
     uint16_t id;        /* Identifiant. */
     uint8_t ip[16];     /* Adresse IP. */

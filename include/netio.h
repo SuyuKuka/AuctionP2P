@@ -56,13 +56,15 @@ int send_msg_to(message msg, int flags, int sock, struct sockaddr *addr, socklen
  *
  * @param[in]   msg Message.
  * @param[in]   flags Flags du message.
+ * @param[in]   additional_size Taille additionnelle pour le buffer.
  * @param[in]   sock Socket.
  * @param[in]   addr Adresse.
  * @param[in]   len Taille de l'adresse.
  *
  * @return `-1` en cas d'erreur, `0` sinon.
  */
-int recv_msg_from(message *msg, int flags, int sock, struct sockaddr *addr, socklen_t *len);
+int recv_msg_from(message *msg, int flags, size_t additional_size, int sock, struct sockaddr *addr,
+                  socklen_t *len);
 /**
  * @brief Envoie le message à la socket `sock`.
  *
