@@ -13,8 +13,12 @@
 #include "netutils.h"
 #include "protocol.h"
 
-int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *counter,
-                 uint32_t initial_price, dyn_array *active_auctions) {
+/**************************************************************************************************
+ *                                    Commandes utilisateurs.                                     *
+ **************************************************************************************************/
+
+int send_init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *counter,
+                      uint32_t initial_price, dyn_array *active_auctions) {
     // Utilisation du compteur comme numéro de vente
     uint32_t auction_num = p_data->id + *counter + 1;
 
@@ -54,8 +58,8 @@ int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *
     return 0;
 }
 
-int place_bid(const pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t auction_num,
-              uint32_t bid_price) {
+int send_place_bid(const pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t auction_num,
+                   uint32_t bid_price) {
     // Préparation du message d'enchère (code 9)
     message bid_msg;
     memset(&bid_msg, 0, sizeof(message));
@@ -96,6 +100,10 @@ void list_auctions(dyn_array *active_auctions) {
     }
 }
 
+/**************************************************************************************************
+ *                                Gestion réception des messages.                                 *
+ **************************************************************************************************/
+
 /**
  * @brief Vérifie si l'enchère existe dans la liste des enchères.
  *
@@ -114,302 +122,231 @@ int check_auction_exists(dyn_array *active_auctions, uint32_t auction_num, int c
     return 0;
 }
 
-void *handle_auctions(void *params) {
-    printf("[DEBUG] === Starting auction thread ===\n");
+void handle_auction_init(message msg, dyn_array *active_auctions) {
+    uint16_t peer_id = ntohs(msg.id);
+    uint32_t auction_num = ntohl(msg.numv);
+    uint32_t price = ntohl(msg.prix);
 
-    auction_handler_params *p = (auction_handler_params *)params;
-    pers_data *p_data = p->p_data;
-    struct sockaddr_in6 auction_addr = p->auction_addr;
-    dyn_array *active_auctions = p->active_auctions;
-    linked_list *peers = p->peers;
+    // Si la vente n'existe pas, l'ajouter à la liste
+    if (check_auction_exists(active_auctions, auction_num, 0)) return;
 
-    // Création socket, listen les messages d'enchères
-    int listen_sock = make_multicast_socket(auction_addr);
-    if (listen_sock < 0) {
-        fprintf(stderr, "[ERROR] Failed to create multicast socket for auctions.\n");
-        return NULL;
+    auction_info new_auction;
+    new_auction.numv = auction_num;
+    new_auction.supervisor_id = peer_id;
+    new_auction.current_price = price;
+    new_auction.current_bidder = peer_id;
+    new_auction.first_notice_time = 0;
+    new_auction.is_active = 1;
+
+    if (concat_to_array(active_auctions, &new_auction, sizeof(auction_info)) < 0) {
+        fprintf(stderr, "  Failed to initialize auction by peer %u.\n", peer_id);
+        return;
     }
 
-    char buffer[1024];
-    while (*p->running) {
-        memset(buffer, 0, sizeof(buffer));
+    printf("  New auction #%u initiated by peer %u with current price %u.\n", auction_num, peer_id,
+           price);
+}
 
-        // Recevoir les messages
-        int recv_len = recvfrom(listen_sock, buffer, sizeof(buffer), 0, NULL, NULL);
-        if (recv_len <= 0) {
-            continue;
+void handle_auction_bid(message msg, dyn_array *active_auctions, pers_data p_data,
+                        struct sockaddr_in6 auction_addr) {
+    int flags = CODE | ID | NUMV | PRIX;
+    uint32_t auction_num = ntohl(msg.numv);
+    uint32_t bid_price = ntohl(msg.prix);
+    uint16_t bidder_id = ntohs(msg.id);
+
+    // Si l'enchère n'existe pas/n'est pas active, on ignore le message.
+    if (!check_auction_exists(active_auctions, auction_num, 1)) {
+        printf("  Ignoring bid for non-existent or finished auction #%u.\n", auction_num);
+        return;
+    }
+
+    printf("  Bid of %u on auction #%u by peer %u.\n", bid_price, auction_num, bidder_id);
+
+    // Si ce pair est superviseur de la vente, rediff l'enchère
+    const auction_info *auctions = (auction_info *)active_auctions->array;
+    int count = active_auctions->len / sizeof(auction_info);
+
+    for (int i = 0; i < count; i++) {
+        if (auctions[i].numv == auction_num && auctions[i].supervisor_id == p_data.id &&
+            auctions[i].is_active) {
+            // Check si l'enchère est valide
+            if (bid_price > auctions[i].current_price) {
+                // Rediff l'enchère avec le code AUC_SUP_REDIFF (rediffusion)
+                message relay_msg = msg;
+                relay_msg.code = AUC_SUP_REDIFF;
+
+                if (send_msg_to(relay_msg, flags, p_data.udp_sock, (struct sockaddr *)&auction_addr,
+                                sizeof(auction_addr)) < 0) {
+                    fprintf(stderr, "Failed to send bid rediffusion.\n");
+                }
+            } else {
+                printf("  Rejected invalid bid on auction #%u (price too low).\n", auction_num);
+
+                // Envoi d'un message de rejet (AUC_REJECT = 15)
+                message reject_msg = msg;
+                reject_msg.code = AUC_REJECT;
+
+                if (send_msg_to(reject_msg, flags, p_data.udp_sock,
+                                (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
+                    fprintf(stderr, "Failed to send bid rejection.\n");
+                }
+            }
         }
+    }
+}
 
-        // Analyser le message reçu
-        message msg;
-        memset(&msg, 0, sizeof(message));
+void handle_rebroadcasted_bid(message msg, dyn_array *active_auctions, linked_list *peers,
+                              pers_data p_data, struct sockaddr_in6 auction_addr,
+                              int auction_sock) {
+    int flags = CODE | ID | NUMV | PRIX;
+    uint32_t auction_num = ntohl(msg.numv);
+    uint32_t bid_price = ntohl(msg.prix);
+    uint16_t bidder_id = ntohs(msg.id);
+    int supervisor_id = -1;
+    peer_data *supervisor_peer = NULL;
 
-        // Déterminer le type de message en lisant le 1er octet (code)
-        uint8_t code = buffer[0];
+    // ID du superviseur
+    auction_info *auctions = (auction_info *)active_auctions->array;
+    int count = active_auctions->len / sizeof(auction_info);
+    for (int i = 0; i < count; i++) {
+        if (auctions[i].numv == auction_num) supervisor_id = auctions[i].supervisor_id;
+    }
+    if (supervisor_id == -1) {
+        printf("[ERROR] Unknown supervisor for auction #%u.\n", auction_num);
+        return;
+    }
 
-        switch (code) {
-            case AUC_INIT: {
-                buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
+    // Infos du superviseur
+    for (node *n = peers->head; n != NULL; n = n->next) {
+        if (n->id == supervisor_id) supervisor_peer = (peer_data *)n->data;
+    }
+    if (supervisor_id != p_data.id && supervisor_peer == NULL) {
+        printf("[ERROR] Supervisor for auction #%u not found in peers list.\n", auction_num);
+        return;
+    }
 
-                uint32_t auction_num = ntohl(msg.numv);
-                uint32_t price = ntohl(msg.prix);
-                uint16_t peer_id = ntohs(msg.id);
+    // Si superviseur : début du consensus
+    if (supervisor_id == p_data.id) {
+        if (supervisor_begin_consensus(p_data, auction_addr, peers, &msg, flags) < 0) {
+            printf("  Consensus failed for bid of %u on auction #%u.\n", bid_price, auction_num);
+            return;
+        }
+    } else {  // Envoi du message de consensus au superviseur
+        // Adresse du superviseur
+        struct sockaddr_in6 addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sin6_family = AF_INET6;
+        memcpy(&addr.sin6_addr.s6_addr, supervisor_peer->ip, sizeof(addr.sin6_addr.s6_addr));
+        addr.sin6_port = htons(supervisor_peer->port);
 
-                // Si la vente n'existe pas, l'ajouter à la liste
-                if (check_auction_exists(active_auctions, auction_num, 0)) break;
+        // ===== DEBUG =====
+        char ip_str[INET6_ADDRSTRLEN];
+        if (inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str)))
+            printf("[DEBUG] CONSENSUS: Supervisor addr: %s %d\n", ip_str, ntohs(addr.sin6_port));
+        // ===== DEBUG =====
 
-                auction_info new_auction;
-                new_auction.numv = auction_num;
-                new_auction.supervisor_id = peer_id;
-                new_auction.current_price = price;
-                new_auction.current_bidder = peer_id;
-                new_auction.first_notice_time = 0;
-                new_auction.is_active = 1;
-
-                if (concat_to_array(active_auctions, &new_auction, sizeof(auction_info)) < 0) {
-                    fprintf(stderr, "  Failed to initialize auction by peer %u.\n", peer_id);
-                    break;
-                }
-
-                printf("  New auction #%u initiated by peer %u with current price %u.\n",
-                       auction_num, peer_id, price);
-                break;
-            }
-
-            case AUC_BID: {
-                int flags = CODE | ID | NUMV | PRIX;
-                buf_to_msg(buffer, &msg, flags);
-                uint32_t auction_num = ntohl(msg.numv);
-                uint32_t bid_price = ntohl(msg.prix);
-                uint16_t bidder_id = ntohs(msg.id);
-
-                // Si l'enchère n'existe pas, on ignore le message.
-                if (!check_auction_exists(active_auctions, auction_num, 1)) {
-                    printf("  Ignoring bid for non-existent or finished auction #%u.\n",
-                           auction_num);
-                    break;
-                }
-
-                printf("  Bid of %u on auction #%u by peer %u.\n", bid_price, auction_num,
-                       bidder_id);
-
-                // Si ce pair est superviseur de la vente, rediff l'enchère
-                const auction_info *auctions = (auction_info *)active_auctions->array;
-                int count = active_auctions->len / sizeof(auction_info);
-
-                for (int i = 0; i < count; i++) {
-                    if (auctions[i].numv == auction_num &&
-                        auctions[i].supervisor_id == p_data->id && auctions[i].is_active) {
-                        // Check si l'enchère est valide
-                        if (bid_price > auctions[i].current_price) {
-                            // Rediff l'enchère avec le code AUC_SUP_REDIFF (rediffusion)
-                            message relay_msg = msg;
-                            relay_msg.code = AUC_SUP_REDIFF;
-
-                            if (send_msg_to(relay_msg, flags, p_data->udp_sock,
-                                            (struct sockaddr *)&auction_addr,
-                                            sizeof(auction_addr)) < 0) {
-                                fprintf(stderr, "Failed to send bid rediffusion.\n");
-                            }
-                        } else {
-                            printf("  Rejected invalid bid on auction #%u (price too low).\n",
-                                   auction_num);
-
-                            // Envoi d'un message de rejet (AUC_REJECT = 15)
-                            message reject_msg = msg;
-                            reject_msg.code = AUC_REJECT;
-
-                            if (send_msg_to(reject_msg, flags, p_data->udp_sock,
-                                            (struct sockaddr *)&auction_addr,
-                                            sizeof(auction_addr)) < 0) {
-                                fprintf(stderr, "Failed to send bid rejection.\n");
-                            }
-                        }
-                    }
-                }
-                break;
-            }
-
-            case AUC_SUP_REDIFF: {  // Rediff de l'enchère par le superviseur (10)
-                int flags = CODE | ID | NUMV | PRIX;
-                buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
-                uint32_t auction_num = ntohl(msg.numv);
-                uint32_t bid_price = ntohl(msg.prix);
-                uint16_t bidder_id = ntohs(msg.id);
-                int supervisor_id = -1;
-                peer_data *supervisor_peer = NULL;
-
-                // ID du superviseur
-                auction_info *auctions = (auction_info *)active_auctions->array;
-                int count = active_auctions->len / sizeof(auction_info);
-                for (int i = 0; i < count; i++) {
-                    if (auctions[i].numv == auction_num) supervisor_id = auctions[i].supervisor_id;
-                }
-                if (supervisor_id == -1) {
-                    printf("[ERROR] Unknown supervisor for auction #%u.\n", auction_num);
-                    break;
-                }
-
-                // Infos du superviseur
-                for (node *n = peers->head; n != NULL; n = n->next) {
-                    if (n->id == supervisor_id) supervisor_peer = (peer_data *)n->data;
-                }
-                if (supervisor_id != p_data->id && supervisor_peer == NULL) {
-                    printf("[ERROR] Supervisor for auction #%u not found in peers list.\n",
-                           auction_num);
-                    break;
-                }
-
-                // Si superviseur : début du consensus
-                if (supervisor_id == p_data->id) {
-                    if (supervisor_begin_consensus(*p_data, auction_addr, peers, &msg, flags) < 0) {
-                        printf("  Consensus failed for bid of %u on auction #%u.\n", bid_price,
-                               auction_num);
-                        break;
-                    }
-                } else {  // Envoi du message de consensus au superviseur
-                    // Adresse du superviseur
-                    struct sockaddr_in6 addr;
-                    memset(&addr, 0, sizeof(addr));
-                    addr.sin6_family = AF_INET6;
-                    memcpy(&addr.sin6_addr.s6_addr, supervisor_peer->ip,
-                           sizeof(addr.sin6_addr.s6_addr));
-                    addr.sin6_port = htons(supervisor_peer->port);
-
-                    // ===== DEBUG =====
-                    char ip_str[INET6_ADDRSTRLEN];
-                    if (inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str)))
-                        printf("[DEBUG] CONSENSUS: Supervisor addr: %s %d\n", ip_str,
-                               ntohs(addr.sin6_port));
-                    // ===== DEBUG =====
-
-                    // Envoi de la validation au superviseur
-                    if (send_await_validation_to_supervisor(addr, &msg, flags, *p_data, *peers,
-                                                            listen_sock, supervisor_id) < 0) {
-                        printf("  Consensus failed for bid of %u on auction #%u.\n", bid_price,
-                               auction_num);
-                        break;
-                    }
-                }
-
-                // Màj prix actuel dans la liste de ventes
-                for (int i = 0; i < count; i++) {
-                    if (auctions[i].numv == auction_num && auctions[i].is_active) {
-                        auctions[i].current_price = bid_price;
-                        auctions[i].current_bidder = bidder_id;
-                        auctions[i].last_activity = time(NULL);
-                        auctions[i].notice_sent = 0;
-                        printf("  Bid of %u on auction #%u by peer %u validated.\n", bid_price,
-                               auction_num, bidder_id);
-                        break;
-                    }
-                }
-                break;
-            }
-
-            case AUC_NOTICE: {  // Première notification de prix final (11)
-                buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
-                uint32_t auction_num = ntohl(msg.numv);
-                uint16_t supervisor_id = ntohs(msg.id);
-                uint32_t current_price = ntohl(msg.prix);
-
-                printf(
-                    "  First notice of ending auction #%u from supervisor %u with current "
-                    "price at "
-                    "%u.\n",
-                    auction_num, supervisor_id, current_price);
-
-                // Mise à jour de l'état de l'enchère
-                auction_info *auctions = (auction_info *)active_auctions->array;
-                int count = active_auctions->len / sizeof(auction_info);
-
-                for (int i = 0; i < count; i++) {
-                    if (auctions[i].numv == auction_num && auctions[i].is_active) {
-                        // Activation du flag de la première notification
-                        auctions[i].notice_sent = 1;
-                        break;
-                    }
-                }
-                break;
-            }
-
-            case AUC_END: {  // Deuxième notification et fin de vente (12)
-                buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
-                uint32_t auction_num = ntohl(msg.numv);
-                uint32_t final_price = ntohl(msg.prix);
-                uint16_t winner_id = ntohs(msg.id);
-
-                printf("  Auction #%u ended, won by peer %u with final price %u.\n", auction_num,
-                       winner_id, final_price);
-
-                // Voir si TODO: implémentation du processus de consensus ici ?
-
-                // Marquer l'enchère comme finie dans la liste
-                auction_info *auctions = (auction_info *)active_auctions->array;
-                int count = active_auctions->len / sizeof(auction_info);
-
-                for (int i = 0; i < count; i++) {
-                    if (auctions[i].numv == auction_num) {
-                        auctions[i].is_active = 0;
-                        break;
-                    }
-                }
-                break;
-            }
-
-            case AUC_LEAVE: {  // Quitter le système (13)
-                buf_to_msg(buffer, &msg, CODE | ID);
-                uint16_t leaving_peer_id = ntohs(msg.id);
-
-                printf("  Peer %u is leaving the auction system.\n", leaving_peer_id);
-                // TODO: Implémenter la gestion d'un pair quittant le système
-                break;
-            }
-
-            case AUC_CONCUR: {  // Concurrence entre deux enchères (14)
-                buf_to_msg(buffer, &msg, CODE | ID | NUMV);
-                uint32_t auction_num = ntohl(msg.numv);
-                uint16_t supervisor_id = ntohs(msg.id);
-
-                printf("  Concurrency issue detected with auction #%u from supervisor %u.\n",
-                       auction_num, supervisor_id);
-                // TODO: Implémenter la gestion de concurrence
-                break;
-            }
-
-            case AUC_REJECT: {  // Enchère rejetée car invalide (15)
-                buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
-                uint32_t auction_num = ntohl(msg.numv);
-                uint32_t rejected_price = ntohl(msg.prix);
-                uint16_t bidder_id = ntohs(msg.id);
-
-                printf("  Bid of %u on auction #%u by peer %u was rejected.\n", rejected_price,
-                       auction_num, bidder_id);
-                break;
-            }
-
-            case MISSING_SUP: {  // Superviseur absent (16)
-                buf_to_msg(buffer, &msg, CODE | ID | NUMV);
-                uint32_t auction_num = ntohl(msg.numv);
-                uint16_t reporting_peer_id = ntohs(msg.id);
-
-                printf("  Supervisor for auction #%u is reported missing by peer %u.\n",
-                       auction_num, reporting_peer_id);
-                // TODO: Implémentation de la gestion d'absence du superviseur
-                break;
-            }
-
-            default:
-                break;
+        // Envoi de la validation au superviseur
+        if (send_await_validation_to_supervisor(addr, &msg, flags, p_data, *peers, auction_sock,
+                                                supervisor_id) < 0) {
+            printf("  Consensus failed for bid of %u on auction #%u.\n", bid_price, auction_num);
+            return;
         }
     }
 
-    close(listen_sock);
-    return NULL;
+    // Màj prix actuel dans la liste de ventes
+    for (int i = 0; i < count; i++) {
+        if (auctions[i].numv == auction_num && auctions[i].is_active) {
+            auctions[i].current_price = bid_price;
+            auctions[i].current_bidder = bidder_id;
+            auctions[i].last_activity = time(NULL);
+            auctions[i].notice_sent = 0;
+            printf("  Bid of %u on auction #%u by peer %u validated.\n", bid_price, auction_num,
+                   bidder_id);
+            break;
+        }
+    }
+}
+
+void handle_auction_first_notice(message msg, dyn_array *active_auctions) {
+    uint32_t auction_num = ntohl(msg.numv);
+    uint16_t supervisor_id = ntohs(msg.id);
+    uint32_t current_price = ntohl(msg.prix);
+
+    printf(
+        "  First notice of ending auction #%u from supervisor %u with current "
+        "price at "
+        "%u.\n",
+        auction_num, supervisor_id, current_price);
+
+    // Mise à jour de l'état de l'enchère
+    auction_info *auctions = (auction_info *)active_auctions->array;
+    int count = active_auctions->len / sizeof(auction_info);
+
+    for (int i = 0; i < count; i++) {
+        if (auctions[i].numv == auction_num && auctions[i].is_active) {
+            // Activation du flag de la première notification
+            auctions[i].notice_sent = 1;
+            break;
+        }
+    }
+}
+
+void handle_auction_end_notice(message msg, dyn_array *active_auctions) {
+    uint32_t auction_num = ntohl(msg.numv);
+    uint32_t final_price = ntohl(msg.prix);
+    uint16_t winner_id = ntohs(msg.id);
+
+    printf("  Auction #%u ended, won by peer %u with final price %u.\n", auction_num, winner_id,
+           final_price);
+
+    // Voir si TODO: implémentation du processus de consensus ici ?
+
+    // Marquer l'enchère comme finie dans la liste
+    auction_info *auctions = (auction_info *)active_auctions->array;
+    int count = active_auctions->len / sizeof(auction_info);
+
+    for (int i = 0; i < count; i++) {
+        if (auctions[i].numv == auction_num) {
+            auctions[i].is_active = 0;
+            break;
+        }
+    }
+}
+
+void handle_auction_leave(message msg) {
+    uint16_t leaving_peer_id = ntohs(msg.id);
+
+    printf("  Peer %u is leaving the auction system.\n", leaving_peer_id);
+    // TODO: Implémenter la gestion d'un pair quittant le système
+}
+
+void handle_auction_concurrent_mess(message msg) {
+    uint32_t auction_num = ntohl(msg.numv);
+    uint16_t supervisor_id = ntohs(msg.id);
+
+    printf("  Concurrency issue detected with auction #%u from supervisor %u.\n", auction_num,
+           supervisor_id);
+}
+
+void handle_auction_bid_rejection(message msg) {
+    uint32_t auction_num = ntohl(msg.numv);
+    uint32_t rejected_price = ntohl(msg.prix);
+    uint16_t bidder_id = ntohs(msg.id);
+
+    printf("  Bid of %u on auction #%u by peer %u was rejected.\n", rejected_price, auction_num,
+           bidder_id);
+}
+
+void handle_auction_missing_supervisor(message msg) {
+    uint32_t auction_num = ntohl(msg.numv);
+    uint16_t reporting_peer_id = ntohs(msg.id);
+
+    printf("  Supervisor for auction #%u is reported missing by peer %u.\n", auction_num,
+           reporting_peer_id);
 }
 
 /**************************************************************************************************
- *                                     Gestion fin de vente. *
+ *                                     Gestion fin de vente.                                      *
  **************************************************************************************************/
 
 /**
@@ -429,7 +366,7 @@ void *handle_auctions(void *params) {
  *
  * @return 0 en cas de succès, -1 en cas d'erreur
  */
-int send_auction_end_notice(const pers_data *p_data, struct sockaddr_in6 auction_addr,
+int send_auction_end_notice(const pers_data p_data, struct sockaddr_in6 auction_addr,
                             uint32_t auction_num, uint32_t current_price, int is_final_notice,
                             uint16_t winner_id) {
     // Préparation du message de notification (code 11 ou 12)
@@ -443,11 +380,11 @@ int send_auction_end_notice(const pers_data *p_data, struct sockaddr_in6 auction
         notice_msg.code = AUC_END;         // CODE = 12
         notice_msg.id = htons(winner_id);  // ID du gagnant
     } else {
-        notice_msg.code = AUC_NOTICE;       // CODE = 11
-        notice_msg.id = htons(p_data->id);  // ID du pair (superviseur)
+        notice_msg.code = AUC_NOTICE;      // CODE = 11
+        notice_msg.id = htons(p_data.id);  // ID du pair (superviseur)
     }
 
-    if (send_msg_to(notice_msg, CODE | ID | NUMV | PRIX, p_data->udp_sock,
+    if (send_msg_to(notice_msg, CODE | ID | NUMV | PRIX, p_data.udp_sock,
                     (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
         fprintf(stderr, "Failed to send auction notice\n");
         return -1;
@@ -465,11 +402,11 @@ int send_auction_end_notice(const pers_data *p_data, struct sockaddr_in6 auction
  * Une demande d'initialisation d'enchère est envoyée pour les pairs
  * arrivés en cours d'enchères.
  *
- * @param[in]   p_data Pointeur vers les données personnelles du pair
+ * @param[in]   p_data Données personnelles du pair
  * @param[in]   auction_addr Adresse multicast pour les messages d'enchères
  * @param[in]   active_auctions Tableau dynamique contenant la liste des enchères actives
  */
-void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr,
+void check_inactive_auctions(pers_data p_data, struct sockaddr_in6 auction_addr,
                              dyn_array *active_auctions) {
     time_t current_time = time(NULL);
     auction_info *auctions = (auction_info *)active_auctions->array;
@@ -479,7 +416,7 @@ void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr
         auction_info *auction = &auctions[i];
 
         // Vérifier uniquement les enchères actives dont ce pair est le superviseur
-        if (!auction->is_active || auction->supervisor_id != p_data->id) continue;
+        if (!auction->is_active || auction->supervisor_id != p_data.id) continue;
 
         // Vérifie si c'est le moment d'envoyer la première/dernière notice de fin
         time_t elapsed = current_time - auctions[i].last_activity;
@@ -503,11 +440,11 @@ void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr
                 message init_msg;
                 memset(&init_msg, 0, sizeof(message));
                 init_msg.code = AUC_INIT;
-                init_msg.id = htons(p_data->id);
+                init_msg.id = htons(p_data.id);
                 init_msg.numv = htonl(auction->numv);
                 init_msg.prix = htonl(auction->current_price);
 
-                if (send_msg_to(init_msg, CODE | ID | NUMV | PRIX, p_data->udp_sock,
+                if (send_msg_to(init_msg, CODE | ID | NUMV | PRIX, p_data.udp_sock,
                                 (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
                     fprintf(stderr, "Failed to send auction reinitialization message.\n");
                 }
@@ -521,8 +458,8 @@ void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr
 void *auction_timer_thread(void *params) {
     printf("[DEBUG] === Starting auction timer thread ===\n");
 
-    auction_handler_params *p = (auction_handler_params *)params;
-    pers_data *p_data = p->p_data;
+    auction_timer_params *p = (auction_timer_params *)params;
+    pers_data p_data = p->p_data;
     struct sockaddr_in6 auction_addr = p->auction_addr;
     dyn_array *active_auctions = p->active_auctions;
 
