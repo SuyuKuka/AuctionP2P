@@ -21,16 +21,15 @@ typedef struct auction_info {
     int notice_sent;          /* Si la première notification a été envoyée */
 } auction_info;
 
-#define T3_SECONDS 20  // 20 secondes, pour tests
+#define T3_SECONDS 20  // 20 secondes
 
-/* Structure pour les paramètres du thread de gestion des enchères */
-typedef struct auction_handler_params {
-    pers_data *p_data;                /* Données personnelles */
+/* Structure pour les paramètres du thread de gestion des enchères inactives */
+typedef struct auction_timer_params {
+    pers_data p_data;                 /* Données personnelles */
     struct sockaddr_in6 auction_addr; /* Adresse multicast d'enchères */
     dyn_array *active_auctions;       /* Liste des enchères actives */
-    linked_list *peers;               /* Adresses et clés des pairs */
     int *running;                     /* Si on doit ou non arrêter le thread */
-} auction_handler_params;
+} auction_timer_params;
 
 /**
  * @brief Initialise une nouvelle enchère.
@@ -47,8 +46,8 @@ typedef struct auction_handler_params {
  *
  * @return 0 en cas de succès, -1 en cas d'erreur
  */
-int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *counter,
-                 uint32_t initial_price, dyn_array *active_auctions);
+int send_init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *counter,
+                      uint32_t initial_price, dyn_array *active_auctions);
 
 /**
  * @brief Place une enchère sur une vente existante.
@@ -64,8 +63,8 @@ int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *
  *
  * @return 0 en cas de succès, -1 en cas d'erreur.
  */
-int place_bid(const pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t auction_num,
-              uint32_t bid_price);
+int send_place_bid(const pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t auction_num,
+                   uint32_t bid_price);
 
 /**
  * @brief Affiche la liste des enchères actives.
@@ -78,6 +77,93 @@ int place_bid(const pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_
 void list_auctions(dyn_array *active_auctions);
 
 /**
+ * @brief Initialise une enchère.
+ *
+ * Ajoute la nouvelle enchère reçue dans la liste si elle n'existe pas déjà.
+ *
+ * @param[in]       msg Message
+ * @param[in,out]   active_auctions Liste des enchères actives
+ */
+void handle_auction_init(message msg, dyn_array *active_auctions);
+
+/**
+ * @brief Gère la réception d'un enchérissement.
+ *
+ * Ignore le message si l'enchère n'est pas en cours.
+ * Sinon un processus de consensus débute.
+ *
+ * @param[in]   msg Message
+ * @param[in]   active_auctions Liste des enchères actives
+ * @param[in]   p_data Données personnelles
+ * @param[in]   auction_addr Adresse d'enchères
+ */
+void handle_auction_bid(message msg, dyn_array *active_auctions, pers_data p_data,
+                        struct sockaddr_in6 auction_addr);
+
+/**
+ * @brief Gère la réception de la rediffusion du message d'enchérissement.
+ *
+ * Met à jour le prix de l'enchère après validation du consensus.
+ *
+ * @param[in]       msg Message
+ * @param[in,out]   active_auctions Liste des enchères actives
+ * @param[in]       peers Liste des pairs
+ * @param[in]       p_data Données personnelles
+ * @param[in]       auction_addr Adresse d'enchères
+ * @param[in]       auction_sock Socket abonnée à l'adresse d'enchères
+ */
+void handle_rebroadcasted_bid(message msg, dyn_array *active_auctions, linked_list *peers,
+                              pers_data p_data, struct sockaddr_in6 auction_addr, int auction_sock);
+
+/**
+ * @brief Gère la réception de la première notification de fin d'une enchère.
+ *
+ * Met à jour l'indicateur de première notification dans la liste des enchères.
+ *
+ * @param[in]       msg Message
+ * @param[in,out]   active_auctions Liste des enchères actives
+ */
+void handle_auction_first_notice(message msg, dyn_array *active_auctions);
+
+/**
+ * @brief Gère la réception de la dernière notification de fin d'une enchère.
+ *
+ * L'enchère devient inactive.
+ *
+ * @param[in]       msg Message
+ * @param[in,out]   active_auctions Liste des enchères actives
+ */
+void handle_auction_end_notice(message msg, dyn_array *active_auctions);
+
+/**
+ * @brief Gère un pair qui quitte le système d'enchères.
+ *
+ * @param[in]   msg Message
+ */
+void handle_auction_leave(message msg);
+
+/**
+ * @brief Gère les messages concurrents.
+ *
+ * @param[in]   msg Message
+ */
+void handle_auction_concurrent_mess(message msg);
+
+/**
+ * @brief Gère le rejet d'une enchère.
+ *
+ * @param[in]   msg Message
+ */
+void handle_auction_bid_rejection(message msg);
+
+/**
+ * @brief Gère la disparition d'un superviseur.
+ *
+ * @param[in]   msg Message
+ */
+void handle_auction_missing_supervisor(message msg);
+
+/**
  * @brief Thread qui vérifie périodiquement les enchères inactives.
  *
  * Ce thread s'exécute en arrière-plan et vérifie périodiquement
@@ -86,23 +172,5 @@ void list_auctions(dyn_array *active_auctions);
  * @param[in] params Pointeur vers `auction_timer_params`
  */
 void *auction_timer_thread(void *params);
-
-/**
- * @brief Thread gérant les messages d'enchères.
- *
- * S'exécute dans un thread séparé, responsable de :
- *
- * - l'écoute des messages d'enchères sur l'addr multicast;
- *
- * - traiter des différents types de messages (`AUC_INIT`, `AUC_BID`, 'AUC_SUP_REDIFF' et plus à
- * rajouter);
- *
- * - mettre à jour la liste active_auctions;
- *
- * - valider et rediffuser les enchères pour lesquelles ce pair est superviseur.
- *
- * @param[in,out]   params Pointeur vers auction_handler_params
- */
-void *handle_auctions(void *params);
 
 #endif

@@ -101,6 +101,8 @@ int main(int argc, char const *argv[]) {
     multicast_handler_args multicast_args = {.linking_addr = linking_addr,
                                              .auction_addr = auction_addr,
                                              .p_data = p_data,
+                                             .active_auctions = &active_auctions,
+                                             .peers = &peers,
                                              .running = &running};
     if (pthread_create(&join_req_thread, NULL, handle_multicast, &multicast_args) < 0) {
         fprintf(stderr, "Failed to create multicast thread\n");
@@ -118,17 +120,11 @@ int main(int argc, char const *argv[]) {
     }
     thread_count++;
 
-    // Initialisation du thread de gestion des enchères
-    pthread_t auction_thread;
-    auction_handler_params auction_params = {.p_data = &p_data,
+    // Initialisation du thread de surveillance des enchères inactives
+    auction_timer_params auction_params = {.p_data = p_data,
                                              .auction_addr = auction_addr,
                                              .active_auctions = &active_auctions,
-                                             .peers = &peers,
                                              .running = &running};
-    if (pthread_create(&auction_thread, NULL, handle_auctions, &auction_params) < 0) goto error;
-    thread_count++;
-
-    // Initialisation du thread de surveillance des enchères inactives
     pthread_t auction_timer_thread_id;
     if (pthread_create(&auction_timer_thread_id, NULL, auction_timer_thread, &auction_params) < 0) {
         fprintf(stderr, "Failed to create auction timer thread\n");
@@ -160,8 +156,8 @@ int main(int argc, char const *argv[]) {
         if (strcmp(cmd, "init") == 0) {  // Init une nouvelle vente
             uint32_t initial_price;
             if (sscanf(input, "%*s %u", &initial_price) == 1) {
-                if (init_auction(&p_data, auction_addr, &auction_counter, initial_price,
-                                 &active_auctions) < 0) {
+                if (send_init_auction(&p_data, auction_addr, &auction_counter, initial_price,
+                                      &active_auctions) < 0) {
                     printf("Failed to initialize auction.\n");
                 }
             } else {
@@ -170,7 +166,7 @@ int main(int argc, char const *argv[]) {
         } else if (strcmp(cmd, "bid") == 0) {  // Placer une offre
             uint32_t auction_num, bid_price;
             if (sscanf(input, "%*s %u %u", &auction_num, &bid_price) == 2) {
-                if (place_bid(&p_data, auction_addr, auction_num, bid_price) < 0) {
+                if (send_place_bid(&p_data, auction_addr, auction_num, bid_price) < 0) {
                     printf(" Failed to place bid.\n");
                 }
             } else {
@@ -191,7 +187,6 @@ int main(int argc, char const *argv[]) {
     // Nettoyage des ressources
     pthread_join(join_req_thread, NULL);
     pthread_join(d_sharing_thread, NULL);
-    pthread_join(auction_thread, NULL);
     pthread_join(auction_timer_thread_id, NULL);
 
     close(udp_sock);
@@ -206,7 +201,6 @@ error:
     running = 0;
     if (thread_count >= 1) pthread_join(join_req_thread, NULL);
     if (thread_count >= 2) pthread_join(d_sharing_thread, NULL);
-    if (thread_count >= 3) pthread_join(auction_thread, NULL);
     if (thread_count >= 4) pthread_join(auction_timer_thread_id, NULL);
     if (udp_sock) close(udp_sock);
     if (udp_serv_sock) close(udp_serv_sock);
