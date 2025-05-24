@@ -102,7 +102,6 @@ void list_auctions(dyn_array *active_auctions) {
 
 void leave_auction(pers_data *p_data, struct sockaddr_in6 auction_addr) {
     // Préparer le message de quitter le système d'enchere (code 13)
-    printf("Leaving the auction system.\n");
     message leaving_auction_msg;
     memset(&leaving_auction_msg, 0, sizeof(message));
 
@@ -349,8 +348,6 @@ void handle_auction_leave(message msg, linked_list *peers, pers_data p_data,
         return;
     }
 
-    printf("  Peer %u is leaving the auction system. And i'm %u\n", leaving_peer_id, p_data.id);
-
     // Si superviseur : début du consensus
     if (leaving_peer_id == p_data.id) {
         if (supervisor_begin_consensus(p_data, auction_addr, peers, &msg, flags) < 0) {
@@ -360,15 +357,12 @@ void handle_auction_leave(message msg, linked_list *peers, pers_data p_data,
     } else {  // Envoi du message de consensus au superviseur
         // Adresse du superviseur
 
-        printf("Making addr\n");
         struct sockaddr_in6 addr;
         memset(&addr, 0, sizeof(addr));
         addr.sin6_family = AF_INET6;
         memcpy(&addr.sin6_addr.s6_addr, supervisor_peer->ip,
                 sizeof(addr.sin6_addr.s6_addr));
         addr.sin6_port = htons(supervisor_peer->port);
-
-        printf("done\n");
 
         // ===== DEBUG =====
         char ip_str[INET6_ADDRSTRLEN];
@@ -385,8 +379,6 @@ void handle_auction_leave(message msg, linked_list *peers, pers_data p_data,
         }
     }
 
-    printf("[DEBUG] Consensus done for leaving peer %u.\n", leaving_peer_id);
-
     // Retirer le peer de la liste des peers
     remove_from_list(leaving_peer_id, peers);
 
@@ -394,10 +386,6 @@ void handle_auction_leave(message msg, linked_list *peers, pers_data p_data,
     if (p_data.id == leaving_peer_id) {
         *running = 0;
         return;
-    }
-
-    for (node *n = peers->head; n != NULL; n = n->next) {
-        printf("ID: %u\n", n->id);
     }
 }
 

@@ -145,9 +145,15 @@ void handle_auction_end_notice(message msg, dyn_array *active_auctions);
 
 /**
  * @brief Gère un pair qui quitte le système d'enchères.
+ * 
+ * Le pair quitte l'enchere.
  *
  * @param[in]   msg Message
- * @param[in]
+ * @param[in]   peers Liste des pairs
+ * @param[in]   p_data Données personnelles
+ * @param[in]   auction_addr Adresse d'enchères
+ * @param[in]   auction_sock Socket abonnée à l'adresse d'enchères
+ * @param[in]   running Information sur si le pair veut quitter l'enchere ou pas
  */
 void handle_auction_leave(message msg, linked_list *peers, pers_data p_data, 
                             struct sockaddr_in6 auction_addr, int auction_sock, int *running);

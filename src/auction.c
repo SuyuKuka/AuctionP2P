@@ -177,27 +177,18 @@ int main(int argc, char const *argv[]) {
         } else if (strcmp(cmd, "help") == 0) {  // Afficher l'aide
             print_help();
         } else if (strcmp(cmd, "quit") == 0) {  // Quitter
-            printf("Goodbye!\n");
             leave_auction(&p_data, auction_addr);
-            while (running) {
-                printf("%d\n", running);
-                sleep(1);
-            }
-            running = 0;
+            while (running) sleep(1);
             break;
         } else {
             printf("Unknown command. Type 'help' for available commands.\n");
         }
     }
 
-    printf("Cleaning thread...\n");
-
     // Nettoyage des ressources
-    pthread_join(join_req_thread, NULL); printf("Cleaned 1\n");
-    pthread_join(d_sharing_thread, NULL); printf("Cleaned 2\n");
-    pthread_join(auction_timer_thread_id, NULL); printf("Cleaned 3\n");
-
-    printf("Cleaning others\n");
+    pthread_join(join_req_thread, NULL);
+    pthread_join(d_sharing_thread, NULL);
+    pthread_join(auction_timer_thread_id, NULL);
 
     close(udp_sock);
     close(udp_serv_sock);
