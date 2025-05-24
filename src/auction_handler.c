@@ -349,6 +349,8 @@ void handle_auction_leave(message msg, linked_list *peers, pers_data p_data,
         return;
     }
 
+    printf("  Peer %u is leaving the auction system. And i'm %u\n", leaving_peer_id, p_data.id);
+
     // Si superviseur : début du consensus
     if (leaving_peer_id == p_data.id) {
         if (supervisor_begin_consensus(p_data, auction_addr, peers, &msg, flags) < 0) {
