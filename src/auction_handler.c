@@ -276,13 +276,6 @@ void *handle_auctions(void *params) {
                            sizeof(addr.sin6_addr.s6_addr));
                     addr.sin6_port = htons(supervisor_peer->port);
 
-                    // ===== DEBUG =====
-                    char ip_str[INET6_ADDRSTRLEN];
-                    if (inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str)))
-                        printf("[DEBUG] CONSENSUS: Supervisor addr: %s %d\n", ip_str,
-                               ntohs(addr.sin6_port));
-                    // ===== DEBUG =====
-
                     // Envoi de la validation au superviseur
                     if (send_await_validation_to_supervisor(addr, &msg, flags, *p_data, *peers,
                                                             listen_sock, supervisor_id) < 0) {
@@ -340,8 +333,7 @@ void *handle_auctions(void *params) {
                 uint32_t final_price = ntohl(msg.prix);
                 uint16_t winner_id = ntohs(msg.id);
 
-                printf("  Auction #%u end proposal, winner being peer %u with final price %u.\n", auction_num,
-                       winner_id, final_price);
+                printf("  End process of auction #%u...\n");
 
                 // ID du superviseur
                 int supervisor_id = -1;
@@ -388,21 +380,15 @@ void *handle_auctions(void *params) {
                     memcpy(&addr.sin6_addr.s6_addr, supervisor_peer->ip, sizeof(addr.sin6_addr.s6_addr));
                     addr.sin6_port = htons(supervisor_peer->port);
 
-                    // ===== DEBUG =====
-                    char ip_str[INET6_ADDRSTRLEN];
-                    if (inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str)))
-                        printf("[DEBUG] CONSENSUS: Supervisor addr: %s %d\n", ip_str,
-                               ntohs(addr.sin6_port));
-                    // ===== DEBUG =====
-
                     // Envoi de la validation au superviseur
                     if (send_await_validation_to_supervisor(addr, &msg, flags, *p_data, *peers,
                                                             listen_sock, supervisor_id) < 0) {
                         printf("  Consensus failed for auction end #%u.\n", auction_num);
                         break;
                     }
-                    printf("  Validation sent for auction end #%u.\n", auction_num);
                 }
+                printf("  Auction #%u ended, won by peer %u with final price %u.\n", auction_num,
+                       winner_id, final_price);
 
                 // Marquer l'enchère comme finie
                 for (int i = 0; i < count; i++) {
@@ -494,12 +480,12 @@ int send_auction_end_notice(const pers_data *p_data, struct sockaddr_in6 auction
     message notice_msg;
     memset(&notice_msg, 0, sizeof(message));
 
-    notice_msg.numv = htonl(auction_num);    // Numéro de vente
-    notice_msg.prix = htonl(current_price);  // Prix actuel
+    notice_msg.numv = htonl(auction_num);   // Numéro de vente
+    notice_msg.prix = htonl(current_price); // Prix actuel
 
     if (is_final_notice) {
-        notice_msg.code = AUC_END;         // CODE = 12
-        notice_msg.id = htons(winner_id);  // ID du gagnant
+        notice_msg.code = AUC_END;          // CODE = 12
+        notice_msg.id = htons(winner_id);   // ID du gagnant
     } else {
         notice_msg.code = AUC_NOTICE;       // CODE = 11
         notice_msg.id = htons(p_data->id);  // ID du pair (superviseur)
@@ -509,11 +495,6 @@ int send_auction_end_notice(const pers_data *p_data, struct sockaddr_in6 auction
                     (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
         fprintf(stderr, "Failed to send auction notice\n");
         return -1;
-    }
-
-    // DEBUG
-    if (is_final_notice) {
-        printf("  Auction end message sent for auction #%u, consensus will be handled upon reception.\n", auction_num);
     }
 
     return 0;
@@ -589,7 +570,6 @@ void *auction_timer_thread(void *params) {
     pers_data *p_data = p->p_data;
     struct sockaddr_in6 auction_addr = p->auction_addr;
     dyn_array *active_auctions = p->active_auctions;
-    // linked_list *peers = p->peers;
 
     while (p->running) {
         // Vérification des enchères inactives
