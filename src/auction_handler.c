@@ -367,14 +367,6 @@ void *handle_auctions(void *params) {
                         break;
                     }
                     printf("  Consensus reached for auction end #%u.\n", auction_num);
-                    
-                    // Marquer l'enchère comme finie
-                    for (int i = 0; i < count; i++) {
-                        if (auctions[i].numv == auction_num) {
-                            auctions[i].is_active = 0;
-                            break;
-                        }
-                    }
                 } else {
                     // Si il n'est pas superviseur, send la validation
                     peer_data *supervisor_peer = NULL;
@@ -410,13 +402,13 @@ void *handle_auctions(void *params) {
                         break;
                     }
                     printf("  Validation sent for auction end #%u.\n", auction_num);
+                }
 
-                    // Marquer l'enchère comme finie
-                    for (int i = 0; i < count; i++) {
-                        if (auctions[i].numv == auction_num) {
-                            auctions[i].is_active = 0;
-                            break;
-                        }
+                // Marquer l'enchère comme finie
+                for (int i = 0; i < count; i++) {
+                    if (auctions[i].numv == auction_num) {
+                        auctions[i].is_active = 0;
+                        break;
                     }
                 }
                 break;
