@@ -132,9 +132,14 @@ void handle_auction_first_notice(message msg, dyn_array *active_auctions);
  *
  * @param[in]       msg Message
  * @param[in,out]   active_auctions Liste des enchères actives
+ * @param[in]       peers Liste des pairs
+ * @param[in]       p_data Données personnelles
+ * @param[in]       auction_addr Adresse d'enchères
+ * @param[in]       auction_sock Socket abonnée à l'adresse d'enchères
  */
 void handle_auction_end_notice(message msg, dyn_array *active_auctions, linked_list *peers,
-                              pers_data p_data, struct sockaddr_in6 auction_addr, int auction_sock);
+                               pers_data p_data, struct sockaddr_in6 auction_addr,
+                               int auction_sock);
 
 /**
  * @brief Gère un pair qui quitte le système d'enchères.

@@ -292,8 +292,8 @@ void handle_auction_first_notice(message msg, dyn_array *active_auctions) {
 }
 
 void handle_auction_end_notice(message msg, dyn_array *active_auctions, linked_list *peers,
-                              pers_data p_data, struct sockaddr_in6 auction_addr,
-                              int auction_sock) {
+                               pers_data p_data, struct sockaddr_in6 auction_addr,
+                               int auction_sock) {
     uint32_t auction_num = ntohl(msg.numv);
     uint32_t final_price = ntohl(msg.prix);
     uint16_t winner_id = ntohs(msg.id);
@@ -304,7 +304,7 @@ void handle_auction_end_notice(message msg, dyn_array *active_auctions, linked_l
     int supervisor_id = -1;
     auction_info *auctions = (auction_info *)active_auctions->array;
     int count = active_auctions->len / sizeof(auction_info);
-                
+
     for (int i = 0; i < count; i++) {
         if (auctions[i].numv == auction_num) {
             supervisor_id = auctions[i].supervisor_id;
@@ -319,7 +319,8 @@ void handle_auction_end_notice(message msg, dyn_array *active_auctions, linked_l
     // Si ce pair est le superviseur, start le consensus
     if (supervisor_id == p_data.id) {
         printf("  Starting consensus as supervisor for auction end #%u...\n", auction_num);
-        if (supervisor_begin_consensus(p_data, auction_addr, peers, &msg, CODE | ID | NUMV | PRIX) < 0) {
+        if (supervisor_begin_consensus(p_data, auction_addr, peers, &msg, CODE | ID | NUMV | PRIX) <
+            0) {
             printf("  Consensus failed for auction end #%u.\n", auction_num);
             return;
         }
@@ -337,7 +338,7 @@ void handle_auction_end_notice(message msg, dyn_array *active_auctions, linked_l
             printf("[ERROR] Supervisor for auction #%u not found in peers list.\n", auction_num);
             return;
         }
-                    
+
         // Adresse du superviseur
         struct sockaddr_in6 addr;
         memset(&addr, 0, sizeof(addr));
@@ -352,8 +353,8 @@ void handle_auction_end_notice(message msg, dyn_array *active_auctions, linked_l
             return;
         }
     }
-    printf("  Auction #%u ended, won by peer %u with final price %u.\n", auction_num,
-            winner_id, final_price);
+    printf("  Auction #%u ended, won by peer %u with final price %u.\n", auction_num, winner_id,
+           final_price);
 
     // Marquer l'enchère comme finie
     for (int i = 0; i < count; i++) {
@@ -425,12 +426,12 @@ int send_auction_end_notice(const pers_data p_data, struct sockaddr_in6 auction_
     message notice_msg;
     memset(&notice_msg, 0, sizeof(message));
 
-    notice_msg.numv = htonl(auction_num);   // Numéro de vente
-    notice_msg.prix = htonl(current_price); // Prix actuel
+    notice_msg.numv = htonl(auction_num);    // Numéro de vente
+    notice_msg.prix = htonl(current_price);  // Prix actuel
 
     if (is_final_notice) {
-        notice_msg.code = AUC_END;          // CODE = 12
-        notice_msg.id = htons(winner_id);   // ID du gagnant
+        notice_msg.code = AUC_END;         // CODE = 12
+        notice_msg.id = htons(winner_id);  // ID du gagnant
     } else {
         notice_msg.code = AUC_NOTICE;      // CODE = 11
         notice_msg.id = htons(p_data.id);  // ID du pair (superviseur)
@@ -457,7 +458,6 @@ int send_auction_end_notice(const pers_data p_data, struct sockaddr_in6 auction_
  * @param[in]   p_data Données personnelles du pair
  * @param[in]   auction_addr Adresse multicast pour les messages d'enchères
  * @param[in]   active_auctions Tableau dynamique contenant la liste des enchères actives
- * @param[in]   peers Liste des pairs
  */
 void check_inactive_auctions(pers_data p_data, struct sockaddr_in6 auction_addr,
                              dyn_array *active_auctions) {
