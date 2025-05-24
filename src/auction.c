@@ -150,7 +150,9 @@ int main(int argc, char const *argv[]) {
 
         // Obtenir la cmd de l'user
         if (fgets(input, sizeof(input), stdin) == NULL) {
-            break;
+            // Ignorer Ctrl+D
+            clearerr(stdin);
+            continue;
         }
 
         // Extraction de la cmd
