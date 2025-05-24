@@ -534,7 +534,7 @@ int send_auction_end_notice(const pers_data *p_data, struct sockaddr_in6 auction
  * @param[in]   peers Liste des pairs
  */
 void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr,
-                             dyn_array *active_auctions, linked_list *peers) {
+                             dyn_array *active_auctions) {
     time_t current_time = time(NULL);
     auction_info *auctions = (auction_info *)active_auctions->array;
     int count = active_auctions->len / sizeof(auction_info);
@@ -589,11 +589,11 @@ void *auction_timer_thread(void *params) {
     pers_data *p_data = p->p_data;
     struct sockaddr_in6 auction_addr = p->auction_addr;
     dyn_array *active_auctions = p->active_auctions;
-    linked_list *peers = p->peers;
+    // linked_list *peers = p->peers;
 
     while (p->running) {
         // Vérification des enchères inactives
-        check_inactive_auctions(p_data, auction_addr, active_auctions, peers);
+        check_inactive_auctions(p_data, auction_addr, active_auctions);
         sleep(5);  // Vérification toutes les 5 secondes
     }
 
