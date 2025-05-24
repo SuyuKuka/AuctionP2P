@@ -395,6 +395,10 @@ void handle_auction_leave(message msg, linked_list *peers, pers_data p_data,
         *running = 0;
         return;
     }
+
+    for (node *n = peers->head; n != NULL; n = n->next) {
+        printf("ID: %u\n", n->id);
+    }
 }
 
 void handle_auction_concurrent_mess(message msg) {
