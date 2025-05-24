@@ -177,7 +177,8 @@ int main(int argc, char const *argv[]) {
         } else if (strcmp(cmd, "help") == 0) {  // Afficher l'aide
             print_help();
         } else if (strcmp(cmd, "quit") == 0) {  // Quitter
-            running = 0;
+            leave_auction(&p_data, auction_addr);
+            while (running) sleep(1);
             break;
         } else {
             printf("Unknown command. Type 'help' for available commands.\n");
