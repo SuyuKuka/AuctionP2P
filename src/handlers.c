@@ -153,7 +153,8 @@ void *handle_tcp(void *arg) {
         int n_fd = poll(&fd, 1, MILLI(10));
         if (n_fd <= 0 || !(fd.revents & POLLIN)) continue;
 
-        peer_data *peer = NULL;
+        peer_data *peer = malloc(sizeof(peer_data));
+        if (peer == NULL) continue;
 
         // Accepte la connexion.
         int peer_sock = accept(p_data.tcp_serv_sock, NULL, NULL);
@@ -172,8 +173,6 @@ void *handle_tcp(void *arg) {
 
         switch (code) {
             case JOIN_SHARE_INFO:
-                peer = malloc(sizeof(peer_data));
-                if (peer == NULL) goto error;
                 if (read_msg(peer_sock, &msg, ID | IP | PORT | CLE, MILLI(5)) < 0) goto error;
                 peer->id = ntohs(msg.id);
                 peer->port = ntohs(msg.port);
@@ -184,10 +183,13 @@ void *handle_tcp(void *arg) {
                 break;
             case JOIN_SHARE_INFO_TO_ALL:
                 if (read_msg(peer_sock, &msg, ID | IP | PORT | CLE, MILLI(5)) < 0) goto error;
+                // Ajout dans la liste.
                 append_peer_data_to_list(peers, ntohs(msg.id), msg.ip, ntohs(msg.port), msg.cle);
+                free(peer);
                 break;
 
             default:
+                free(peer);
                 break;
         }
 
@@ -195,7 +197,7 @@ void *handle_tcp(void *arg) {
         continue;
 
     error:
-        if (peer != NULL) free(peer);
+        free(peer);
         close(peer_sock);
     }
 
