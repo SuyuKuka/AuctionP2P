@@ -195,8 +195,6 @@ void handle_auction_bid(message msg, dyn_array *active_auctions, pers_data p_dat
                     fprintf(stderr, "Failed to send bid rediffusion.\n");
                 }
             } else {
-                printf("  Rejected invalid bid on auction #%u (price too low).\n", auction_num);
-
                 // Envoi d'un message de rejet (AUC_REJECT = 15)
                 message reject_msg = msg;
                 reject_msg.code = AUC_REJECT;
@@ -454,8 +452,8 @@ void handle_auction_bid_rejection(message msg) {
     uint32_t rejected_price = ntohl(msg.prix);
     uint16_t bidder_id = ntohs(msg.id);
 
-    printf("  Bid of %u on auction #%u by peer %u was rejected.\n", rejected_price, auction_num,
-           bidder_id);
+    printf("  Rejected bid of %u on auction #%u by peer %u (price too low).\n", 
+            rejected_price, auction_num, bidder_id);
 }
 
 void handle_auction_missing_supervisor(message msg) {
