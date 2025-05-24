@@ -1,10 +1,12 @@
 #include "handlers.h"
 
 #include <arpa/inet.h>
+#include <poll.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
+#include "auction_handler.h"
 #include "linking.h"
 #include "netio.h"
 #include "netutils.h"
@@ -17,6 +19,8 @@ void *handle_multicast(void *arg) {
     struct sockaddr_in6 linking_addr = args->linking_addr;
     struct sockaddr_in6 auction_addr = args->auction_addr;
     pers_data p_data = args->p_data;
+    dyn_array *active_auctions = args->active_auctions;
+    linked_list *peers = args->peers;
     // Socket abonnée à l'adresse de liaison.
     int linking_subs_sock = -1;
     // Socket abonnée à l'adresse d'enchères.
@@ -28,29 +32,98 @@ void *handle_multicast(void *arg) {
     if (auction_subs_sock < 0) goto error;
 
     message msg;
+    struct pollfd fds[2];
+    fds[0].fd = linking_subs_sock;
+    fds[0].events = POLLIN;
+    fds[1].fd = auction_subs_sock;
+    fds[1].events = POLLIN;
     while (*args->running) {
+        int n_fd = poll(fds, 2, MILLI(10));
+        if (n_fd <= 0) continue;
+
         memset(&msg, 0, sizeof(msg));
 
-        // Adresse de l'expéditeur.
-        struct sockaddr_in6 addr;
-        socklen_t addr_len = sizeof(addr);
-        if (recv_msg_from(&msg, ALL, 0, linking_subs_sock, (struct sockaddr *)&addr, &addr_len) < 0)
-            continue;
+        if (n_fd > 0) {
+            if (fds[0].revents & POLLIN) {
+                // Adresse de l'expéditeur.
+                struct sockaddr_in6 addr;
+                socklen_t addr_len = sizeof(addr);
+                if (recv_msg_from(&msg, CODE, 0, linking_subs_sock, (struct sockaddr *)&addr,
+                                  &addr_len) < 0)
+                    continue;
 
-        // ===== DEBUG =====
-        char ip_str[INET6_ADDRSTRLEN];
-        if (inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str)))
-            printf("[DEBUG] Multicast message received from: %s %d\n", ip_str,
-                   ntohs(addr.sin6_port));
-        // ===== DEBUG =====
+                // ===== DEBUG =====
+                char ip_str[INET6_ADDRSTRLEN];
+                if (inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str)))
+                    printf("[DEBUG] Multicast message received from: %s %d\n", ip_str,
+                           ntohs(addr.sin6_port));
+                // ===== DEBUG =====
 
-        switch (msg.code) {
-            case JOIN_REQ:
-                handle_join_request(addr, p_data);
-                break;
+                switch (msg.code) {
+                    case JOIN_REQ:
+                        handle_join_request(addr, p_data);
+                        break;
 
-            default:
-                continue;
+                    default:
+                        break;
+                }
+            }
+
+            if (fds[1].revents & POLLIN) {
+                char buffer[1024];
+                memset(buffer, 0, sizeof(buffer));
+                if (recv(auction_subs_sock, buffer, sizeof(buffer), 0) < 0) continue;
+                switch (buffer[0]) {
+                    case AUC_INIT:
+                        buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
+                        handle_auction_init(msg, active_auctions);
+                        break;
+
+                    case AUC_BID:
+                        buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
+                        handle_auction_bid(msg, active_auctions, p_data, auction_addr);
+                        break;
+
+                    case AUC_SUP_REDIFF:
+                        buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
+                        handle_rebroadcasted_bid(msg, active_auctions, peers, p_data, auction_addr,
+                                                 auction_subs_sock);
+                        break;
+
+                    case AUC_NOTICE:
+                        buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
+                        handle_auction_first_notice(msg, active_auctions);
+                        break;
+
+                    case AUC_END:
+                        buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
+                        handle_auction_end_notice(msg, active_auctions);
+                        break;
+
+                    case AUC_LEAVE:
+                        buf_to_msg(buffer, &msg, CODE | ID);
+                        handle_auction_leave(msg);
+                        break;
+
+                    case AUC_CONCUR:
+                        buf_to_msg(buffer, &msg, CODE | ID | NUMV);
+                        handle_auction_concurrent_mess(msg);
+                        break;
+
+                    case AUC_REJECT:
+                        buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
+                        handle_auction_bid_rejection(msg);
+                        break;
+
+                    case MISSING_SUP:
+                        buf_to_msg(buffer, &msg, CODE | ID | NUMV);
+                        handle_auction_missing_supervisor(msg);
+                        break;
+
+                    default:
+                        break;
+                }
+            }
         }
     }
 
@@ -71,9 +144,12 @@ void *handle_tcp(void *arg) {
     linked_list *peers = args->peers;
 
     message msg;
-
+    struct pollfd fd = {.fd = p_data.tcp_serv_sock, .events = POLLIN};
     while (*args->running) {
         memset(&msg, 0, sizeof(msg));
+
+        int n_fd = poll(&fd, 1, MILLI(10));
+        if (n_fd <= 0 || !(fd.revents & POLLIN)) continue;
 
         peer_data *peer = malloc(sizeof(peer_data));
         if (peer == NULL) continue;
