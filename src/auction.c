@@ -17,6 +17,8 @@
 #define LINKING_PORT 57500
 #define AUCTIONS_PORT 59500
 
+int consensus_state = 0;             // Indicateur de fin de consensus.
+
 void print_help() {
     printf("Available commands:\n");
     printf("  init <initial_price> - Initialize a new auction\n");
@@ -183,20 +185,29 @@ int main(int argc, char const *argv[]) {
         } else if (strcmp(cmd, "quit") == 0) {  // Quitter
             printf("Goodbye!\n");
             leave_auction(&p_data, auction_addr);
-            // Si y'a plus personne dans le système d'enchères alors on quitte
-            if (peers.size == 0) {
-                running = 0;
+            while (!consensus_state) {
+                sleep(1);
             }
+            running = 0;
+            break;
         } else {
             printf("Unknown command. Type 'help' for available commands.\n");
         }
     }
 
+    printf("Running : %d", running);
+
+    printf(" Done, cleaning now...\n");
+
     // Nettoyage des ressources
-    pthread_join(join_req_thread, NULL);
-    pthread_join(d_sharing_thread, NULL);
-    pthread_join(auction_thread, NULL);
-    pthread_join(auction_timer_thread_id, NULL);
+    pthread_join(join_req_thread, NULL); printf("1\n");
+    pthread_join(d_sharing_thread, NULL); printf("2\n");
+    pthread_join(auction_thread, NULL); printf("3\n");
+    pthread_join(auction_timer_thread_id, NULL); printf("4\n");
+
+    printf(" Thread clean now\n");
+
+    printf(" Free time\n");
 
     close(udp_sock);
     close(udp_serv_sock);

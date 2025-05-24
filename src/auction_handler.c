@@ -13,6 +13,8 @@
 #include "netutils.h"
 #include "protocol.h"
 
+extern int consensus_state;
+
 int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *counter,
                  uint32_t initial_price, dyn_array *active_auctions) {
     // Utilisation du compteur comme numéro de vente
@@ -99,6 +101,17 @@ void list_auctions(dyn_array *active_auctions) {
 void leave_auction(pers_data *p_data, struct sockaddr_in6 auction_addr) {
     // Préparer le message de quitter le système d'enchere (code 13)
     printf("Leaving the auction system.\n");
+    message leaving_auction_msg;
+    memset(&leaving_auction_msg, 0, sizeof(message));
+
+    leaving_auction_msg.code = AUC_LEAVE;              // CODE = 13
+    leaving_auction_msg.id = htons(p_data->id);       // ID du pair
+
+    // Envoie du message de quitter le système d'enchere à tous les pairs
+    if (send_msg_to(leaving_auction_msg, CODE | ID, p_data->udp_sock,
+                    (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
+        fprintf(stderr, "Failed to send auction initialization.\n");
+    }
 }
 
 /**
@@ -237,7 +250,7 @@ void *handle_auctions(void *params) {
 
             case AUC_SUP_REDIFF: {  // Rediff de l'enchère par le superviseur (10)
                 int flags = CODE | ID | NUMV | PRIX;
-                buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
+                buf_to_msg(buffer, &msg, flags);
                 uint32_t auction_num = ntohl(msg.numv);
                 uint32_t bid_price = ntohl(msg.prix);
                 uint16_t bidder_id = ntohs(msg.id);
@@ -257,8 +270,12 @@ void *handle_auctions(void *params) {
 
                 // Infos du superviseur
                 for (node *n = peers->head; n != NULL; n = n->next) {
-                    if (n->id == supervisor_id) supervisor_peer = (peer_data *)n->data;
+                    if (n->id == supervisor_id) {
+                        supervisor_peer = (peer_data *)n->data;
+                        break;
+                    }
                 }
+
                 if (supervisor_id != p_data->id && supervisor_peer == NULL) {
                     printf("[ERROR] Supervisor for auction #%u not found in peers list.\n",
                            auction_num);
@@ -363,11 +380,64 @@ void *handle_auctions(void *params) {
             }
 
             case AUC_LEAVE: {  // Quitter le système (13)
-                buf_to_msg(buffer, &msg, CODE | ID);
-                uint16_t leaving_peer_id = ntohs(msg.id);
+                int flags = CODE | ID;
+                buf_to_msg(buffer, &msg, flags);
+                uint16_t leaving_peer_id = ntohs(msg.id); // Le pair qui quitte est le superviseur 
+                peer_data *supervisor_peer = NULL;
 
                 printf("  Peer %u is leaving the auction system.\n", leaving_peer_id);
-                // TODO: Implémenter la gestion d'un pair quittant le système
+
+                for (node *n = peers->head; n != NULL; n = n->next) {
+                    if (n->id == leaving_peer_id) {
+                        supervisor_peer = (peer_data *)n->data;
+                        break;
+                    }
+                }
+
+                if (leaving_peer_id != p_data->id && supervisor_peer == NULL) {
+                    printf("[ERROR] Peer %u not found in peers list.\n", leaving_peer_id);
+                    break;
+                }
+
+                // Si superviseur : début du consensus
+                if (leaving_peer_id == p_data->id) {
+                    if (supervisor_begin_consensus(*p_data, auction_addr, peers, &msg, flags) < 0) {
+                        printf("  Consensus failed for leaving peer %u.\n", leaving_peer_id);
+                        break;
+                    }
+                } else {  // Envoi du message de consensus au superviseur
+                    // Adresse du superviseur
+                    struct sockaddr_in6 addr;
+                    memset(&addr, 0, sizeof(addr));
+                    addr.sin6_family = AF_INET6;
+                    memcpy(&addr.sin6_addr.s6_addr, supervisor_peer->ip,
+                           sizeof(addr.sin6_addr.s6_addr));
+                    addr.sin6_port = htons(supervisor_peer->port);
+
+                    // ===== DEBUG =====
+                    char ip_str[INET6_ADDRSTRLEN];
+                    if (inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str)))
+                        printf("[DEBUG] CONSENSUS: Supervisor addr: %s %d\n", ip_str,
+                               ntohs(addr.sin6_port));
+                    // ===== DEBUG =====
+
+                    // Envoi de la validation au superviseur
+                    if (send_await_validation_to_supervisor(addr, &msg, flags, *p_data, *peers,
+                                                            listen_sock, leaving_peer_id) < 0) {
+                        printf("  Consensus failed for leaving peer %u.\n", leaving_peer_id);
+                        break;
+                    }
+                }
+
+                printf("[DEBUG] Consensus done for leaving peer %u.\n", leaving_peer_id);
+
+                // Retirer le peer de la liste des peers
+                remove_from_list(leaving_peer_id, peers);
+
+                // Faire quitter la boucle principale puis nettoyer ses données
+                if (p_data->id == leaving_peer_id) {
+                    consensus_state = 1;
+                }
                 break;
             }
 
