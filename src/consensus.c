@@ -32,6 +32,8 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
             if (msg.code != CONS_VAL) continue;
 
             // Message conccurent sur la même vente
+            printf("[DEBUG] Expected : mess->numv=%u, Received : msg.numv=%u\n", ntohl(mess->numv), ntohl(msg.numv));
+            printf("[DEBUG] Expected : mess->id=%u, Received : msg.id=%u\n", ntohs(mess->id), ntohs(msg.id));
             if (mess->id != msg.id && mess->numv == msg.numv) {
                 // Envoyer un message de CODE 14
                 message reject_msg = msg;
