@@ -32,7 +32,7 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
             if (msg.code != CONS_VAL) continue;
 
             // Message conccurent sur la même vente
-            if (mess.id != msg.id && mess.numv == msg.numv) {
+            if (mess->id != msg.id && mess->numv == msg.numv) {
                 // Envoyer un message de CODE 14
                 message reject_msg = msg;
                 reject_msg.code = AUC_CONCUR;
@@ -40,7 +40,7 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
                     perror("[ERROR] send_msg_to");
                     continue;
                 }
-                
+
                 printf("[DEBUG] CONSENSUS: Bid of %u on auction #%u by peer %u was rejected.\n",
                        ntohl(msg.prix), ntohl(msg.numv), ntohs(msg.id));
                 continue;
