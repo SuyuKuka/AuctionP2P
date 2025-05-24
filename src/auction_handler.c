@@ -334,6 +334,7 @@ void *handle_auctions(void *params) {
             }
 
             case AUC_END: {  // Deuxième notification et fin de vente (12)
+                int flags = CODE | ID | NUMV | PRIX;
                 buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
                 uint32_t auction_num = ntohl(msg.numv);
                 uint32_t final_price = ntohl(msg.prix);
@@ -361,8 +362,7 @@ void *handle_auctions(void *params) {
                 // Si ce pair est le superviseur, start le consensus
                 if (supervisor_id == p_data->id) {
                     printf("  Starting consensus as supervisor for auction end #%u...\n", auction_num);
-                    if (supervisor_begin_consensus(*p_data, auction_addr, peers, &msg, 
-                                                CODE | ID | NUMV | PRIX) < 0) {
+                    if (supervisor_begin_consensus(*p_data, auction_addr, peers, &msg, flags) < 0) {
                         printf("  Consensus failed for auction end #%u.\n", auction_num);
                         break;
                     }
@@ -395,14 +395,20 @@ void *handle_auctions(void *params) {
                     addr.sin6_family = AF_INET6;
                     memcpy(&addr.sin6_addr.s6_addr, supervisor_peer->ip, sizeof(addr.sin6_addr.s6_addr));
                     addr.sin6_port = htons(supervisor_peer->port);
-                    
+
+                    // ===== DEBUG =====
+                    char ip_str[INET6_ADDRSTRLEN];
+                    if (inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str)))
+                        printf("[DEBUG] CONSENSUS: Supervisor addr: %s %d\n", ip_str,
+                               ntohs(addr.sin6_port));
+                    // ===== DEBUG =====
+
                     // Envoi de la validation au superviseur
-                    if (send_await_validation_to_supervisor(addr, &msg, CODE | ID | NUMV | PRIX, 
-                                                        *p_data, *peers, listen_sock, supervisor_id) < 0) {
+                    if (send_await_validation_to_supervisor(addr, &msg, flags, *p_data, *peers,
+                                                            listen_sock, supervisor_id) < 0) {
                         printf("  Consensus failed for auction end #%u.\n", auction_num);
                         break;
                     }
-                    
                     printf("  Validation sent for auction end #%u.\n", auction_num);
                 }
                 break;
@@ -477,6 +483,7 @@ void *handle_auctions(void *params) {
  * @param[in]   current_price Prix actuel de l'enchère
  * @param[in]   is_final_notice Si c'est la dernière notification de fin
  * @param[in]   winner_id ID du gagnant de l'enchère
+ * @param[in]   peers Liste des pairs
  *
  * @return 0 en cas de succès, -1 en cas d'erreur
  */
@@ -494,7 +501,7 @@ int send_auction_end_notice(const pers_data *p_data, struct sockaddr_in6 auction
         notice_msg.code = AUC_END;         // CODE = 12
         notice_msg.id = htons(winner_id);  // ID du gagnant
 
-        printf("  Starting consensus for auction end #%u...\n", auction_num);
+        printf("  Starting consensus for auction's #%u end...\n", auction_num);
         if (supervisor_begin_consensus(*p_data, auction_addr, peers, &notice_msg, 
                                      CODE | ID | NUMV | PRIX) < 0) {
             fprintf(stderr, "Failed to reach consensus for auction end\n");
@@ -527,6 +534,7 @@ int send_auction_end_notice(const pers_data *p_data, struct sockaddr_in6 auction
  * @param[in]   p_data Pointeur vers les données personnelles du pair
  * @param[in]   auction_addr Adresse multicast pour les messages d'enchères
  * @param[in]   active_auctions Tableau dynamique contenant la liste des enchères actives
+ * @param[in]   peers Liste des pairs
  */
 void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr,
                              dyn_array *active_auctions, linked_list *peers) {
