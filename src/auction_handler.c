@@ -357,12 +357,16 @@ void handle_auction_leave(message msg, linked_list *peers, pers_data p_data,
         }
     } else {  // Envoi du message de consensus au superviseur
         // Adresse du superviseur
+
+        printf("Making addr\n");
         struct sockaddr_in6 addr;
         memset(&addr, 0, sizeof(addr));
         addr.sin6_family = AF_INET6;
         memcpy(&addr.sin6_addr.s6_addr, supervisor_peer->ip,
                 sizeof(addr.sin6_addr.s6_addr));
         addr.sin6_port = htons(supervisor_peer->port);
+
+        printf("done\n");
 
         // ===== DEBUG =====
         char ip_str[INET6_ADDRSTRLEN];
