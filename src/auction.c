@@ -17,8 +17,6 @@
 #define LINKING_PORT 57500
 #define AUCTIONS_PORT 59500
 
-int consensus_state = 0;             // Indicateur de fin de consensus.
-
 void print_help() {
     printf("Available commands:\n");
     printf("  init <initial_price> - Initialize a new auction\n");
@@ -127,6 +125,8 @@ int main(int argc, char const *argv[]) {
                                              .active_auctions = &active_auctions,
                                              .peers = &peers,
                                              .running = &running};
+
+    printf("%ls\n", auction_params.running);
     if (pthread_create(&auction_thread, NULL, handle_auctions, &auction_params) < 0) goto error;
     thread_count++;
 
@@ -185,7 +185,8 @@ int main(int argc, char const *argv[]) {
         } else if (strcmp(cmd, "quit") == 0) {  // Quitter
             printf("Goodbye!\n");
             leave_auction(&p_data, auction_addr);
-            while (!consensus_state) {
+            while (auction_params.running) {
+                printf("%ls\n", auction_params.running);
                 sleep(1);
             }
             running = 0;

@@ -13,8 +13,6 @@
 #include "netutils.h"
 #include "protocol.h"
 
-extern int consensus_state;
-
 int init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_t *counter,
                  uint32_t initial_price, dyn_array *active_auctions) {
     // Utilisation du compteur comme numéro de vente
@@ -436,7 +434,7 @@ void *handle_auctions(void *params) {
 
                 // Faire quitter la boucle principale puis nettoyer ses données
                 if (p_data->id == leaving_peer_id) {
-                    consensus_state = 1;
+                    p->running = 0;
                 }
                 break;
             }
