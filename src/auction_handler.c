@@ -489,7 +489,7 @@ void *handle_auctions(void *params) {
  */
 int send_auction_end_notice(const pers_data *p_data, struct sockaddr_in6 auction_addr,
                             uint32_t auction_num, uint32_t current_price, int is_final_notice,
-                            uint16_t winner_id, linked_list *peers) {
+                            uint16_t winner_id) {
     // Préparation du message de notification (code 11 ou 12)
     message notice_msg;
     memset(&notice_msg, 0, sizeof(message));
@@ -557,7 +557,7 @@ void check_inactive_auctions(pers_data *p_data, struct sockaddr_in6 auction_addr
 
         // Envoi de la notification (code 11 ou 12)
         if (send_auction_end_notice(p_data, auction_addr, auction->numv, auction->current_price,
-                                    auction->notice_sent, auction->current_bidder, peers) == 0) {
+                                    auction->notice_sent, auction->current_bidder) == 0) {
             if (auction->notice_sent == 0) {
                 auction->notice_sent = 1;
                 auction->first_notice_time = current_time;
