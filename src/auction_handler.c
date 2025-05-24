@@ -463,7 +463,7 @@ void *auction_timer_thread(void *params) {
     struct sockaddr_in6 auction_addr = p->auction_addr;
     dyn_array *active_auctions = p->active_auctions;
 
-    while (p->running) {
+    while (*p->running) {
         // Vérification des enchères inactives
         check_inactive_auctions(p_data, auction_addr, active_auctions);
         sleep(5);  // Vérification toutes les 5 secondes

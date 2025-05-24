@@ -122,9 +122,9 @@ int main(int argc, char const *argv[]) {
 
     // Initialisation du thread de surveillance des enchères inactives
     auction_timer_params auction_params = {.p_data = p_data,
-                                             .auction_addr = auction_addr,
-                                             .active_auctions = &active_auctions,
-                                             .running = &running};
+                                           .auction_addr = auction_addr,
+                                           .active_auctions = &active_auctions,
+                                           .running = &running};
     pthread_t auction_timer_thread_id;
     if (pthread_create(&auction_timer_thread_id, NULL, auction_timer_thread, &auction_params) < 0) {
         fprintf(stderr, "Failed to create auction timer thread\n");
@@ -201,7 +201,7 @@ error:
     running = 0;
     if (thread_count >= 1) pthread_join(join_req_thread, NULL);
     if (thread_count >= 2) pthread_join(d_sharing_thread, NULL);
-    if (thread_count >= 4) pthread_join(auction_timer_thread_id, NULL);
+    if (thread_count >= 3) pthread_join(auction_timer_thread_id, NULL);
     if (udp_sock) close(udp_sock);
     if (udp_serv_sock) close(udp_serv_sock);
     if (tcp_serv_sock) close(tcp_serv_sock);
