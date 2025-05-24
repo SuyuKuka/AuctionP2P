@@ -340,7 +340,7 @@ void handle_auction_leave(message msg, linked_list *peers, pers_data p_data,
     for (node *n = peers->head; n != NULL; n = n->next) {
         if (n->id == leaving_peer_id) {
             supervisor_peer = (peer_data *)n->data;
-            return;
+            break;
         }
     }
 
