@@ -185,6 +185,7 @@ void *handle_tcp(void *arg) {
                 if (read_msg(peer_sock, &msg, ID | IP | PORT | CLE, MILLI(5)) < 0) goto error;
                 // Ajout dans la liste.
                 append_peer_data_to_list(peers, ntohs(msg.id), msg.ip, ntohs(msg.port), msg.cle);
+                free(peer);
                 break;
 
             default:
