@@ -14,8 +14,8 @@
 
 #define LINKING_IP "ff12::feed:bee"
 #define AUCTIONS_IP "ff12::add:beef"
-#define LINKING_PORT 57500
-#define AUCTIONS_PORT 59500
+#define LINKING_PORT 57550
+#define AUCTIONS_PORT 59550
 
 void print_help() {
     printf("Available commands:\n");
