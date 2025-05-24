@@ -407,12 +407,13 @@ int handle_info_sharing(int peer_sock, peer_data *peer, pers_data p_data, linked
                         struct sockaddr_in6 auction_addr) {
     // Vérification de l'ID.
     int new_id = verify_id(peers, p_data.id, peer->id);
+    peer->id = new_id;
 
     // Réponse à l'expéditeur :
-    if (send_id_validity(peer_sock, new_id, peer->id == new_id) < 0) return -1;
+    if (send_id_validity(peer_sock, peer->id, peer->id == new_id) < 0) return -1;
 
     // Ajout des données du pair dans `peers`.
-    if (append_peer_data_to_list(peers, new_id, peer->ip, peer->port, peer->cle) < 0) return -1;
+    if (append_peer_data_to_list(peers, peer->id, peer->ip, peer->port, peer->cle) < 0) return -1;
 
     // ===== DEBUG =====
     peer_data *d = get_last_node(peers)->data;
