@@ -35,7 +35,7 @@ int send_init_auction(pers_data *p_data, struct sockaddr_in6 auction_addr, uint3
 
     if (send_msg_to(auction_init_msg, CODE | ID | NUMV | PRIX, p_data->udp_sock,
                     (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
-        fprintf(stderr, "Failed to send auction initialization.\n");
+        fprintf(stderr, "[ERROR] Failed to send auction initialization.\n");
         return -1;
     }
 
@@ -71,7 +71,7 @@ int send_place_bid(const pers_data *p_data, struct sockaddr_in6 auction_addr, ui
 
     if (send_msg_to(bid_msg, CODE | ID | NUMV | PRIX, p_data->udp_sock,
                     (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
-        fprintf(stderr, "Failed to send bid.\n");
+        fprintf(stderr, "[ERROR] Failed to send bid.\n");
         return -1;
     }
 
@@ -105,13 +105,13 @@ void leave_auction(pers_data *p_data, struct sockaddr_in6 auction_addr) {
     message leaving_auction_msg;
     memset(&leaving_auction_msg, 0, sizeof(message));
 
-    leaving_auction_msg.code = AUC_LEAVE;              // CODE = 13
-    leaving_auction_msg.id = htons(p_data->id);       // ID du pair
+    leaving_auction_msg.code = AUC_LEAVE;        // CODE = 13
+    leaving_auction_msg.id = htons(p_data->id);  // ID du pair
 
     // Envoie du message de quitter le système d'enchere à tous les pairs
     if (send_msg_to(leaving_auction_msg, CODE | ID, p_data->udp_sock,
                     (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
-        fprintf(stderr, "Failed to send auction initialization.\n");
+        fprintf(stderr, "[ERROR] Failed to send auction initialization.\n");
     }
 }
 
@@ -154,7 +154,7 @@ void handle_auction_init(message msg, dyn_array *active_auctions) {
     new_auction.is_active = 1;
 
     if (concat_to_array(active_auctions, &new_auction, sizeof(auction_info)) < 0) {
-        fprintf(stderr, "  Failed to initialize auction by peer %u.\n", peer_id);
+        fprintf(stderr, "[ERROR] Failed to initialize auction by peer %u.\n", peer_id);
         return;
     }
 
@@ -192,7 +192,7 @@ void handle_auction_bid(message msg, dyn_array *active_auctions, pers_data p_dat
 
                 if (send_msg_to(relay_msg, flags, p_data.udp_sock, (struct sockaddr *)&auction_addr,
                                 sizeof(auction_addr)) < 0) {
-                    fprintf(stderr, "Failed to send bid rediffusion.\n");
+                    fprintf(stderr, "[ERROR] Failed to send bid rediffusion.\n");
                 }
             } else {
                 printf("  Rejected invalid bid on auction #%u (price too low).\n", auction_num);
@@ -203,7 +203,7 @@ void handle_auction_bid(message msg, dyn_array *active_auctions, pers_data p_dat
 
                 if (send_msg_to(reject_msg, flags, p_data.udp_sock,
                                 (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
-                    fprintf(stderr, "Failed to send bid rejection.\n");
+                    fprintf(stderr, "[ERROR] Failed to send bid rejection.\n");
                 }
             }
         }
@@ -227,7 +227,7 @@ void handle_rebroadcasted_bid(message msg, dyn_array *active_auctions, linked_li
         if (auctions[i].numv == auction_num) supervisor_id = auctions[i].supervisor_id;
     }
     if (supervisor_id == -1) {
-        printf("[ERROR] Unknown supervisor for auction #%u.\n", auction_num);
+        fprintf(stderr, "[ERROR] Unknown supervisor for auction #%u.\n", auction_num);
         return;
     }
 
@@ -236,7 +236,8 @@ void handle_rebroadcasted_bid(message msg, dyn_array *active_auctions, linked_li
         if (n->id == supervisor_id) supervisor_peer = (peer_data *)n->data;
     }
     if (supervisor_id != p_data.id && supervisor_peer == NULL) {
-        printf("[ERROR] Supervisor for auction #%u not found in peers list.\n", auction_num);
+        fprintf(stderr, "[ERROR] Supervisor for auction #%u not found in peers list.\n",
+                auction_num);
         return;
     }
 
@@ -327,7 +328,7 @@ void handle_auction_end_notice(message msg, dyn_array *active_auctions, linked_l
         }
     }
     if (supervisor_id == -1) {
-        printf("[ERROR] Unknown supervisor for auction #%u.\n", auction_num);
+        fprintf(stderr, "[ERROR] Unknown supervisor for auction #%u.\n", auction_num);
         return;
     }
 
@@ -350,7 +351,8 @@ void handle_auction_end_notice(message msg, dyn_array *active_auctions, linked_l
             }
         }
         if (supervisor_peer == NULL) {
-            printf("[ERROR] Supervisor for auction #%u not found in peers list.\n", auction_num);
+            fprintf(stderr, "[ERROR] Supervisor for auction #%u not found in peers list.\n",
+                    auction_num);
             return;
         }
 
@@ -380,8 +382,8 @@ void handle_auction_end_notice(message msg, dyn_array *active_auctions, linked_l
     }
 }
 
-void handle_auction_leave(message msg, linked_list *peers, pers_data p_data, 
-                            struct sockaddr_in6 auction_addr, int auction_sock, int *running) {
+void handle_auction_leave(message msg, linked_list *peers, pers_data p_data,
+                          struct sockaddr_in6 auction_addr, int auction_sock, int *running) {
     int flags = CODE | ID;
     uint16_t leaving_peer_id = ntohs(msg.id);
     peer_data *supervisor_peer = NULL;
@@ -396,7 +398,7 @@ void handle_auction_leave(message msg, linked_list *peers, pers_data p_data,
     }
 
     if (leaving_peer_id != p_data.id && supervisor_peer == NULL) {
-        printf("[ERROR] Peer %u not found in peers list.\n", leaving_peer_id);
+        fprintf(stderr, "[ERROR] Peer %u not found in peers list.\n", leaving_peer_id);
         return;
     }
 
@@ -412,20 +414,18 @@ void handle_auction_leave(message msg, linked_list *peers, pers_data p_data,
         struct sockaddr_in6 addr;
         memset(&addr, 0, sizeof(addr));
         addr.sin6_family = AF_INET6;
-        memcpy(&addr.sin6_addr.s6_addr, supervisor_peer->ip,
-                sizeof(addr.sin6_addr.s6_addr));
+        memcpy(&addr.sin6_addr.s6_addr, supervisor_peer->ip, sizeof(addr.sin6_addr.s6_addr));
         addr.sin6_port = htons(supervisor_peer->port);
 
         // ===== DEBUG =====
         char ip_str[INET6_ADDRSTRLEN];
         if (inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, sizeof(ip_str)))
-            printf("[DEBUG] CONSENSUS: Supervisor addr: %s %d\n", ip_str,
-                    ntohs(addr.sin6_port));
+            printf("[DEBUG] CONSENSUS: Supervisor addr: %s %d\n", ip_str, ntohs(addr.sin6_port));
         // ===== DEBUG =====
 
         // Envoi de la validation au superviseur
-        if (send_await_validation_to_supervisor(addr, &msg, flags, p_data, *peers,
-                                                auction_sock, leaving_peer_id) < 0) {
+        if (send_await_validation_to_supervisor(addr, &msg, flags, p_data, *peers, auction_sock,
+                                                leaving_peer_id) < 0) {
             printf("  Consensus failed for leaving peer %u.\n", leaving_peer_id);
             return;
         }
@@ -508,7 +508,7 @@ int send_auction_end_notice(const pers_data p_data, struct sockaddr_in6 auction_
 
     if (send_msg_to(notice_msg, CODE | ID | NUMV | PRIX, p_data.udp_sock,
                     (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
-        fprintf(stderr, "Failed to send auction notice\n");
+        fprintf(stderr, "[ERROR] Failed to send auction notice\n");
         return -1;
     }
 
@@ -568,7 +568,7 @@ void check_inactive_auctions(pers_data p_data, struct sockaddr_in6 auction_addr,
 
                 if (send_msg_to(init_msg, CODE | ID | NUMV | PRIX, p_data.udp_sock,
                                 (struct sockaddr *)&auction_addr, sizeof(auction_addr)) < 0) {
-                    fprintf(stderr, "Failed to send auction reinitialization message.\n");
+                    fprintf(stderr, "[ERROR] Failed to send auction reinitialization message.\n");
                 }
             } else {
                 auction->is_active = 0;  // Enchère marquée comme terminée

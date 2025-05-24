@@ -37,7 +37,7 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
             uint16_t peer_id = ntohs(msg.id);
             const node *peer;
             if ((peer = get_node(peer_id, peers)) == NULL) {
-                printf("[ERROR] CONSENSUS: Unknown peer id: %d\n", peer_id);
+                fprintf(stderr, "[ERROR] CONSENSUS: Unknown peer id: %d\n", peer_id);
                 continue;
             }
             if (verify_signature(msg_buf.array, msg.sig, ((peer_data *)peer->data)->cle) < 0)
@@ -46,7 +46,7 @@ int supervisor_begin_consensus(pers_data p_data, struct sockaddr_in6 mult_addr, 
             // Ajout dans la liste des pairs vérifiés
             node *n = init_node();
             if (!n) {
-                printf("[ERROR] CONSENSUS: Failed to add peer to checked list.\n");
+                fprintf(stderr, "[ERROR] CONSENSUS: Failed to add peer to checked list.\n");
                 continue;
             }
             append_to_list(n, peer_id, &checked_list);
@@ -315,7 +315,7 @@ int send_await_validation_to_supervisor(struct sockaddr_in6 supervisor_addr, mes
         uint16_t sig_id = ntohs(sig_msg.id);
         if (sig_id != p_data.id) {
             if ((peer = get_node(sig_id, &peers)) == NULL) {
-                printf("[ERROR] CONSENSUS: Unknown peer id: %d\n", sig_id);
+                fprintf(stderr, "[ERROR] CONSENSUS: Unknown peer id: %d\n", sig_id);
                 goto error;
             }
             if (verify_signature(msg_buf.array, sig_msg.sig, ((peer_data *)peer->data)->cle) < 0)

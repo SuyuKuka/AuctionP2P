@@ -1,11 +1,11 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <signal.h>
 
 #include "auction_handler.h"
 #include "handlers.h"
@@ -110,7 +110,7 @@ int main(int argc, char const *argv[]) {
                                              .peers = &peers,
                                              .running = &running};
     if (pthread_create(&join_req_thread, NULL, handle_multicast, &multicast_args) < 0) {
-        fprintf(stderr, "Failed to create multicast thread\n");
+        fprintf(stderr, "[ERROR] Failed to create multicast thread\n");
         goto error;
     }
     thread_count++;
@@ -120,7 +120,7 @@ int main(int argc, char const *argv[]) {
     tcp_handler_args tcp_args = {
         .auction_addr = auction_addr, .p_data = p_data, .peers = &peers, .running = &running};
     if (pthread_create(&d_sharing_thread, NULL, handle_tcp, &tcp_args) < 0) {
-        fprintf(stderr, "Failed to create TCP thread\n");
+        fprintf(stderr, "[ERROR] Failed to create TCP thread\n");
         goto error;
     }
     thread_count++;
@@ -132,7 +132,7 @@ int main(int argc, char const *argv[]) {
                                            .running = &running};
     pthread_t auction_timer_thread_id;
     if (pthread_create(&auction_timer_thread_id, NULL, auction_timer_thread, &auction_params) < 0) {
-        fprintf(stderr, "Failed to create auction timer thread\n");
+        fprintf(stderr, "[ERROR] Failed to create auction timer thread\n");
         goto error;
     }
     thread_count++;
