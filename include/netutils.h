@@ -16,7 +16,7 @@ int init_multicast_addr(struct sockaddr_in6 *addr, const char *ip, int port);
 /**
  * @brief Renvoie une socket UDP liée au port donné acceptant toute adresse.
  *
- * @param[in]   port Port en /!\ big-endian.
+ * @param[in]   port Port.
  *
  * @return `-1` en cas d'erreur, `0` sinon.
  */

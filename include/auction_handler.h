@@ -6,6 +6,7 @@
 #include <time.h>
 
 #include "collections.h"
+#include "consensus.h"
 #include "protocol.h"
 
 /* Structure d'une enchère */
@@ -27,6 +28,7 @@ typedef struct auction_handler_params {
     pers_data *p_data;                /* Données personnelles */
     struct sockaddr_in6 auction_addr; /* Adresse multicast d'enchères */
     dyn_array *active_auctions;       /* Liste des enchères actives */
+    linked_list *peers;               /* Adresses et clés des pairs */
     int *running;                     /* Si on doit ou non arrêter le thread */
 } auction_handler_params;
 
