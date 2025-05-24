@@ -291,20 +291,72 @@ void handle_auction_first_notice(message msg, dyn_array *active_auctions) {
     }
 }
 
-void handle_auction_end_notice(message msg, dyn_array *active_auctions) {
+void handle_auction_end_notice(message msg, dyn_array *active_auctions, linked_list *peers,
+                               pers_data p_data, struct sockaddr_in6 auction_addr,
+                               int auction_sock) {
     uint32_t auction_num = ntohl(msg.numv);
     uint32_t final_price = ntohl(msg.prix);
     uint16_t winner_id = ntohs(msg.id);
 
-    printf("  Auction #%u ended, won by peer %u with final price %u.\n", auction_num, winner_id,
-           final_price);
+    printf("  End process of auction #%u...\n", auction_num);
 
-    // Voir si TODO: implémentation du processus de consensus ici ?
-
-    // Marquer l'enchère comme finie dans la liste
+    // ID du superviseur
+    int supervisor_id = -1;
     auction_info *auctions = (auction_info *)active_auctions->array;
     int count = active_auctions->len / sizeof(auction_info);
 
+    for (int i = 0; i < count; i++) {
+        if (auctions[i].numv == auction_num) {
+            supervisor_id = auctions[i].supervisor_id;
+            break;
+        }
+    }
+    if (supervisor_id == -1) {
+        printf("[ERROR] Unknown supervisor for auction #%u.\n", auction_num);
+        return;
+    }
+
+    // Si ce pair est le superviseur, start le consensus
+    if (supervisor_id == p_data.id) {
+        printf("  Starting consensus as supervisor for auction end #%u...\n", auction_num);
+        if (supervisor_begin_consensus(p_data, auction_addr, peers, &msg, CODE | ID | NUMV | PRIX) <
+            0) {
+            printf("  Consensus failed for auction end #%u.\n", auction_num);
+            return;
+        }
+        printf("  Consensus reached for auction end #%u.\n", auction_num);
+    } else {
+        // Si il n'est pas superviseur, send la validation
+        peer_data *supervisor_peer = NULL;
+        for (node *n = peers->head; n != NULL; n = n->next) {
+            if (n->id == supervisor_id) {
+                supervisor_peer = (peer_data *)n->data;
+                break;
+            }
+        }
+        if (supervisor_peer == NULL) {
+            printf("[ERROR] Supervisor for auction #%u not found in peers list.\n", auction_num);
+            return;
+        }
+
+        // Adresse du superviseur
+        struct sockaddr_in6 addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sin6_family = AF_INET6;
+        memcpy(&addr.sin6_addr.s6_addr, supervisor_peer->ip, sizeof(addr.sin6_addr.s6_addr));
+        addr.sin6_port = htons(supervisor_peer->port);
+
+        // Envoi de la validation au superviseur
+        if (send_await_validation_to_supervisor(addr, &msg, CODE | ID | NUMV | PRIX, p_data, *peers,
+                                                auction_sock, supervisor_id) < 0) {
+            printf("  Consensus failed for auction end #%u.\n", auction_num);
+            return;
+        }
+    }
+    printf("  Auction #%u ended, won by peer %u with final price %u.\n", auction_num, winner_id,
+           final_price);
+
+    // Marquer l'enchère comme finie
     for (int i = 0; i < count; i++) {
         if (auctions[i].numv == auction_num) {
             auctions[i].is_active = 0;
@@ -363,6 +415,7 @@ void handle_auction_missing_supervisor(message msg) {
  * @param[in]   current_price Prix actuel de l'enchère
  * @param[in]   is_final_notice Si c'est la dernière notification de fin
  * @param[in]   winner_id ID du gagnant de l'enchère
+ * @param[in]   peers Liste des pairs
  *
  * @return 0 en cas de succès, -1 en cas d'erreur
  */
@@ -456,7 +509,7 @@ void check_inactive_auctions(pers_data p_data, struct sockaddr_in6 auction_addr,
 }
 
 void *auction_timer_thread(void *params) {
-    printf("[DEBUG] === Starting auction timer thread ===\n");
+    printf("[DEBUG] === Starting auction timer thread with consensus ===\n");
 
     auction_timer_params *p = (auction_timer_params *)params;
     pers_data p_data = p->p_data;
