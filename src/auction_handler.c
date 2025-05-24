@@ -96,6 +96,11 @@ void list_auctions(dyn_array *active_auctions) {
     }
 }
 
+void leave_auction(pers_data *p_data, struct sockaddr_in6 auction_addr) {
+    // Préparer le message de quitter le système d'enchere (code 13)
+    printf("Leaving the auction system.\n");
+}
+
 /**
  * @brief Vérifie si l'enchère existe dans la liste des enchères.
  *

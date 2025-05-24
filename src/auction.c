@@ -181,8 +181,12 @@ int main(int argc, char const *argv[]) {
         } else if (strcmp(cmd, "help") == 0) {  // Afficher l'aide
             print_help();
         } else if (strcmp(cmd, "quit") == 0) {  // Quitter
-            running = 0;
-            break;
+            printf("Goodbye!\n");
+            leave_auction(&p_data, auction_addr);
+            // Si y'a plus personne dans le système d'enchères alors on quitte
+            if (peers.size == 0) {
+                running = 0;
+            }
         } else {
             printf("Unknown command. Type 'help' for available commands.\n");
         }

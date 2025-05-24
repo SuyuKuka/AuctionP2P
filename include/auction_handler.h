@@ -78,6 +78,16 @@ int place_bid(const pers_data *p_data, struct sockaddr_in6 auction_addr, uint32_
 void list_auctions(dyn_array *active_auctions);
 
 /**
+ * @brief Quitte le système d'enchère.
+ * 
+ * 
+ * 
+ * @param[in]   p_data Données personnelles du pair
+ * @param[in]   auction_addr Adresse multicast pour les messages d'enchères
+ */
+void leave_auction(pers_data *p_data, struct sockaddr_in6 auction_addr);
+
+/**
  * @brief Thread qui vérifie périodiquement les enchères inactives.
  *
  * Ce thread s'exécute en arrière-plan et vérifie périodiquement
