@@ -333,7 +333,7 @@ void *handle_auctions(void *params) {
                 uint32_t final_price = ntohl(msg.prix);
                 uint16_t winner_id = ntohs(msg.id);
 
-                printf("  End process of auction #%u...\n");
+                printf("  End process of auction #%u...\n", auction_num);
 
                 // ID du superviseur
                 int supervisor_id = -1;
