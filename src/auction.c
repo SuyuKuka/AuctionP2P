@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include "auction_handler.h"
 #include "handlers.h"
@@ -27,7 +28,11 @@ void print_help() {
 }
 
 int main(int argc, char const *argv[]) {
-    // TODO: Demander l'adresse et le port ?
+    // Ignore SIGINT (Ctrl+C), SIGQUIT (Ctrl+\) et SIGTSTP (Ctrl+Z).
+    signal(SIGINT, SIG_IGN);
+    signal(SIGQUIT, SIG_IGN);
+    signal(SIGTSTP, SIG_IGN);
+
     (void)argc;
     (void)argv;
 
@@ -145,7 +150,9 @@ int main(int argc, char const *argv[]) {
 
         // Obtenir la cmd de l'user
         if (fgets(input, sizeof(input), stdin) == NULL) {
-            break;
+            // Ignorer Ctrl+D
+            clearerr(stdin);
+            continue;
         }
 
         // Extraction de la cmd
@@ -193,7 +200,6 @@ int main(int argc, char const *argv[]) {
     close(udp_sock);
     close(udp_serv_sock);
     close(tcp_serv_sock);
-    // if (linking_subs_sock >= 0) close(linking_subs_sock);
     free_list(&peers);
     free_dyn_array(active_auctions);
     return EXIT_SUCCESS;

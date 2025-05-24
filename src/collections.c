@@ -73,6 +73,7 @@ void remove_from_list(int id, linked_list *list) {
 
     if (list->head->id == id) {
         list->head = tmp->next;
+        if (tmp->data) free(tmp->data);
         free(tmp);
         list->size--;
         return;
@@ -81,6 +82,7 @@ void remove_from_list(int id, linked_list *list) {
     while (tmp != NULL) {
         if (tmp->id == id) {
             prev->next = tmp->next;
+            if (tmp->data) free(tmp->data);
             free(tmp);
             list->size--;
             return;

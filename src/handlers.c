@@ -180,14 +180,17 @@ void *handle_tcp(void *arg) {
                 memcpy(&peer->cle, &msg.cle, sizeof(peer->cle));
 
                 handle_info_sharing(peer_sock, peer, p_data, peers, auction_addr);
+                free(peer);
                 break;
             case JOIN_SHARE_INFO_TO_ALL:
                 if (read_msg(peer_sock, &msg, ID | IP | PORT | CLE, MILLI(5)) < 0) goto error;
                 // Ajout dans la liste.
                 append_peer_data_to_list(peers, ntohs(msg.id), msg.ip, ntohs(msg.port), msg.cle);
+                free(peer);
                 break;
 
             default:
+                free(peer);
                 break;
         }
 
