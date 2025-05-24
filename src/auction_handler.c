@@ -148,6 +148,73 @@ void *handle_auctions(void *params) {
         uint8_t code = buffer[0];
 
         switch (code) {
+            case CONS_VAL: { break; }
+
+            case CONS_CONF: {
+                int flags = CODE | ID | LMESS | MESS | LSIG | SIG | NB;
+                buf_to_msg(buffer, &msg, flags);
+
+                uint16_t supervisor_id = ntohs(msg.id);
+                printf("  Consensus confirmation received from supervisor %u.\n", supervisor_id);
+
+                // Extraction du message original depuis MESS
+                message original_msg;
+                memset(&original_msg, 0, sizeof(original_msg));
+                memcpy(&original_msg, msg.mess, msg.lmess);
+                
+                switch (original_msg.code) {
+                    case AUC_END: {
+                        uint32_t auction_num = ntohl(original_msg.numv);
+                        uint32_t final_price = ntohl(original_msg.prix);
+                        uint16_t winner_id = ntohs(original_msg.id);
+                        
+                        printf("  Consensus validated: Auction #%u ended, won by peer %u with final price %u.\n", 
+                            auction_num, winner_id, final_price);
+                        
+                        // Marquer l'enchère comme finie dans la liste
+                        auction_info *auctions = (auction_info *)active_auctions->array;
+                        int count = active_auctions->len / sizeof(auction_info);
+                        
+                        for (int i = 0; i < count; i++) {
+                            if (auctions[i].numv == auction_num) {
+                                auctions[i].is_active = 0;
+                                auctions[i].current_price = final_price;
+                                auctions[i].current_bidder = winner_id;
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                    case AUC_SUP_REDIFF: {
+                        // Consensus pour une enchère validée
+                        uint32_t auction_num = ntohl(original_msg.numv);
+                        uint32_t bid_price = ntohl(original_msg.prix);
+                        uint16_t bidder_id = ntohs(original_msg.id);
+                        
+                        printf("  Consensus validated: Bid of %u on auction #%u by peer %u.\n", 
+                            bid_price, auction_num, bidder_id);
+                        
+                        // Maj du prix actuel (déjà fait normalement mais sécu cas où)
+                        auction_info *auctions = (auction_info *)active_auctions->array;
+                        int count = active_auctions->len / sizeof(auction_info);
+                        
+                        for (int i = 0; i < count; i++) {
+                            if (auctions[i].numv == auction_num && auctions[i].is_active) {
+                                auctions[i].current_price = bid_price;
+                                auctions[i].current_bidder = bidder_id;
+                                auctions[i].last_activity = time(NULL);
+                                auctions[i].notice_sent = 0;
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+                break;
+            }
+
+            case CONS_CONF_FOLLOW: { break; }
+
             case AUC_INIT: {
                 buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
 
