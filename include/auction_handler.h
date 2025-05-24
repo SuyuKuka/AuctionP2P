@@ -87,6 +87,14 @@ void list_auctions(dyn_array *active_auctions);
 void handle_auction_init(message msg, dyn_array *active_auctions);
 
 /**
+ * @brief Quitte le système d'enchère
+ * 
+ * @param[in]   p_data Données personnelles
+ * @param[in]   auction_addr Adresse multicast pour les messages d'enchères
+ */
+void leave_auction(pers_data *p_data, struct sockaddr_in6 auction_addr);
+
+/**
  * @brief Gère la réception d'un enchérissement.
  *
  * Ignore le message si l'enchère n'est pas en cours.
@@ -139,8 +147,10 @@ void handle_auction_end_notice(message msg, dyn_array *active_auctions);
  * @brief Gère un pair qui quitte le système d'enchères.
  *
  * @param[in]   msg Message
+ * @param[in]
  */
-void handle_auction_leave(message msg);
+void handle_auction_leave(message msg, linked_list *peers, pers_data p_data, 
+                            struct sockaddr_in6 auction_addr, int auction_sock, int *running);
 
 /**
  * @brief Gère les messages concurrents.

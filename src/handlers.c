@@ -102,7 +102,8 @@ void *handle_multicast(void *arg) {
 
                     case AUC_LEAVE:
                         buf_to_msg(buffer, &msg, CODE | ID);
-                        handle_auction_leave(msg);
+                        handle_auction_leave(msg, peers, p_data, auction_addr, 
+                                                auction_subs_sock, args->running);
                         break;
 
                     case AUC_CONCUR:
