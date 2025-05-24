@@ -96,7 +96,7 @@ void *handle_multicast(void *arg) {
                         break;
 
                     case AUC_END:
-                        buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);  // voir err peers ?
+                        buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
                         handle_auction_end_notice(msg, active_auctions, peers, p_data, auction_addr,
                                                  auction_subs_sock);
                         break;
