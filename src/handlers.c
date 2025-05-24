@@ -189,6 +189,7 @@ void *handle_tcp(void *arg) {
                 break;
 
             default:
+                free(peer);
                 break;
         }
 
