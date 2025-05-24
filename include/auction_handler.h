@@ -21,7 +21,7 @@ typedef struct auction_info {
     int notice_sent;          /* Si la première notification a été envoyée */
 } auction_info;
 
-#define T3_SECONDS 20  // 20 secondes
+#define T3_SECONDS 30  // timer de 30 secondes
 
 /* Structure pour les paramètres du thread de gestion des enchères inactives */
 typedef struct auction_timer_params {
