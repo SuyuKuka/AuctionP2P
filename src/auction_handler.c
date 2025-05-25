@@ -383,7 +383,8 @@ void handle_auction_end_notice(message msg, dyn_array *active_auctions, linked_l
 }
 
 void handle_auction_leave(message msg, linked_list *peers, pers_data p_data,
-                          struct sockaddr_in6 auction_addr, int auction_sock, int *running) {
+                          struct sockaddr_in6 auction_addr, int auction_sock,
+                          dyn_array *active_auctions, int *running) {
     int flags = CODE | ID;
     uint16_t leaving_peer_id = ntohs(msg.id);
     peer_data *supervisor_peer = NULL;
@@ -433,6 +434,16 @@ void handle_auction_leave(message msg, linked_list *peers, pers_data p_data,
 
     // Retirer le peer de la liste des peers
     remove_from_list(leaving_peer_id, peers);
+
+    // Marquer les enchères comme finie
+    auction_info *auctions = (auction_info *)active_auctions->array;
+    int count = active_auctions->len / sizeof(auction_info);
+    for (int i = 0; i < count; i++) {
+        if (auctions[i].supervisor_id == leaving_peer_id) {
+            auctions[i].is_active = 0;
+            break;
+        }
+    }
 
     // Faire quitter la boucle principale puis nettoyer ses données
     if (p_data.id == leaving_peer_id) {

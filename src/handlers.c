@@ -98,13 +98,13 @@ void *handle_multicast(void *arg) {
                     case AUC_END:
                         buf_to_msg(buffer, &msg, CODE | ID | NUMV | PRIX);
                         handle_auction_end_notice(msg, active_auctions, peers, p_data, auction_addr,
-                                                 auction_subs_sock);
+                                                  auction_subs_sock);
                         break;
 
                     case AUC_LEAVE:
                         buf_to_msg(buffer, &msg, CODE | ID);
-                        handle_auction_leave(msg, peers, p_data, auction_addr, 
-                                                auction_subs_sock, args->running);
+                        handle_auction_leave(msg, peers, p_data, auction_addr, auction_subs_sock,
+                                             active_auctions, args->running);
                         break;
 
                     case AUC_CONCUR:
